@@ -8,16 +8,27 @@ from pydantic import BaseModel
 from agent.domain.state import DialogueState
 from agent.task.action.custom.shared import (
     fetch_account,
+    fetch_account_products,
+    fetch_account_transactions,
     fetch_card,
+    fetch_credit_application,
+    fetch_customer,
+    fetch_customer_status_history,
     fetch_deposit_products,
     fetch_fund_product,
     fetch_fund_products,
+    fetch_loan_application,
     fetch_loan_contract,
     fetch_loan_product,
     fetch_loan_products,
+    fetch_repayment_schedules,
+    fetch_service_products,
     fetch_transaction,
     fetch_transfer_records,
+    fetch_wealth_incomes,
+    fetch_wealth_order,
     fetch_wealth_product,
+    fetch_wealth_product_navs,
     fetch_wealth_products,
     reset_current_customer_no,
     set_current_customer_no,
@@ -242,6 +253,174 @@ class TransferAPIProvider(BaseAPIProvider):
             text = json.dumps(records, ensure_ascii=False, indent=2)
             return [KnowledgeChunk(content=f"转账记录列表:\n{text}")]
         return [KnowledgeChunk(content=f"未查询到转账记录 {identifier} 的信息。")]
+
+
+# ------------------------------------------------------------------ #
+#  账户产品目录                                                       #
+# ------------------------------------------------------------------ #
+
+class AccountProductCatalogProvider(BaseAPIProvider):
+    provider_id = 'api.account_product_catalog'
+
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+        products = await fetch_account_products()
+        if not products:
+            return [KnowledgeChunk(content="未查询到账户产品信息。")]
+        text = json.dumps(products, ensure_ascii=False, indent=2)
+        return [KnowledgeChunk(content=f"账户产品列表:\n{text}")]
+
+
+# ------------------------------------------------------------------ #
+#  服务产品目录                                                       #
+# ------------------------------------------------------------------ #
+
+class ServiceProductCatalogProvider(BaseAPIProvider):
+    provider_id = 'api.service_product_catalog'
+
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+        products = await fetch_service_products()
+        if not products:
+            return [KnowledgeChunk(content="未查询到服务产品信息。")]
+        text = json.dumps(products, ensure_ascii=False, indent=2)
+        return [KnowledgeChunk(content=f"服务产品列表:\n{text}")]
+
+
+# ------------------------------------------------------------------ #
+#  客户档案                                                           #
+# ------------------------------------------------------------------ #
+
+class CustomerProfileProvider(BaseAPIProvider):
+    provider_id = 'api.customer_profile'
+
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+        customer_no = state.sender_id
+        data: dict[str, Any] | None = await fetch_customer(customer_no)
+        if data is None:
+            return [KnowledgeChunk(content=f"未查询到客户 {customer_no} 的档案信息。")]
+        text = json.dumps(data, ensure_ascii=False, indent=2)
+        return [KnowledgeChunk(content=f"客户档案信息:\n{text}")]
+
+
+# ------------------------------------------------------------------ #
+#  客户状态历史                                                       #
+# ------------------------------------------------------------------ #
+
+class CustomerStatusHistoryProvider(BaseAPIProvider):
+    provider_id = 'api.customer_status_history'
+
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+        customer_no = state.sender_id
+        records = await fetch_customer_status_history(customer_no)
+        if not records:
+            return [KnowledgeChunk(content=f"未查询到客户 {customer_no} 的状态变更历史。")]
+        text = json.dumps(records, ensure_ascii=False, indent=2)
+        return [KnowledgeChunk(content=f"客户状态变更历史:\n{text}")]
+
+
+# ------------------------------------------------------------------ #
+#  理财净值                                                           #
+# ------------------------------------------------------------------ #
+
+class WealthNavsProvider(BaseAPIProvider):
+    provider_id = 'api.wealth_navs'
+
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+        product_code = state.focused_object.id if state.focused_object else ""
+        if not product_code:
+            return [KnowledgeChunk(content="请先指定要查询净值的理财产品。")]
+        records = await fetch_wealth_product_navs(product_code)
+        if not records:
+            return [KnowledgeChunk(content=f"未查询到理财产品 {product_code} 的净值数据。")]
+        text = json.dumps(records, ensure_ascii=False, indent=2)
+        return [KnowledgeChunk(content=f"理财产品 {product_code} 的净值数据:\n{text}")]
+
+
+# ------------------------------------------------------------------ #
+#  理财收益                                                           #
+# ------------------------------------------------------------------ #
+
+class WealthIncomeProvider(BaseAPIProvider):
+    provider_id = 'api.wealth_income'
+
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+        customer_no = state.sender_id
+        records = await fetch_wealth_incomes(customer_no)
+        if not records:
+            return [KnowledgeChunk(content=f"未查询到客户 {customer_no} 的理财收益记录。")]
+        text = json.dumps(records, ensure_ascii=False, indent=2)
+        return [KnowledgeChunk(content=f"理财收益记录:\n{text}")]
+
+
+# ------------------------------------------------------------------ #
+#  理财订单详情                                                       #
+# ------------------------------------------------------------------ #
+
+class WealthOrderProvider(BaseAPIProvider):
+    provider_id = 'api.wealth_order'
+
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+        order_no = state.focused_object.id if state.focused_object else ""
+        if not order_no:
+            return [KnowledgeChunk(content="请先指定要查询的理财订单。")]
+        data: dict[str, Any] | None = await fetch_wealth_order(order_no)
+        if data is None:
+            return [KnowledgeChunk(content=f"未查询到理财订单 {order_no} 的信息。")]
+        text = json.dumps(data, ensure_ascii=False, indent=2)
+        return [KnowledgeChunk(content=f"理财订单信息:\n{text}")]
+
+
+# ------------------------------------------------------------------ #
+#  授信申请详情                                                       #
+# ------------------------------------------------------------------ #
+
+class CreditApplicationProvider(BaseAPIProvider):
+    provider_id = 'api.credit_application'
+
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+        identifier = state.focused_object.id if state.focused_object else ""
+        if not identifier:
+            return [KnowledgeChunk(content="请先指定授信申请号。")]
+        data: dict[str, Any] | None = await fetch_credit_application(identifier)
+        if data is None:
+            return [KnowledgeChunk(content=f"未查询到授信申请 {identifier} 的信息。")]
+        text = json.dumps(data, ensure_ascii=False, indent=2)
+        return [KnowledgeChunk(content=f"授信申请信息:\n{text}")]
+
+
+# ------------------------------------------------------------------ #
+#  贷款申请详情                                                       #
+# ------------------------------------------------------------------ #
+
+class LoanApplicationProvider(BaseAPIProvider):
+    provider_id = 'api.loan_application'
+
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+        identifier = state.focused_object.id if state.focused_object else ""
+        if not identifier:
+            return [KnowledgeChunk(content="请先指定贷款申请号。")]
+        data: dict[str, Any] | None = await fetch_loan_application(identifier)
+        if data is None:
+            return [KnowledgeChunk(content=f"未查询到贷款申请 {identifier} 的信息。")]
+        text = json.dumps(data, ensure_ascii=False, indent=2)
+        return [KnowledgeChunk(content=f"贷款申请信息:\n{text}")]
+
+
+# ------------------------------------------------------------------ #
+#  还款计划                                                           #
+# ------------------------------------------------------------------ #
+
+class RepaymentScheduleProvider(BaseAPIProvider):
+    provider_id = 'api.repayment_schedule'
+
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+        contract_no = state.focused_object.id if state.focused_object else ""
+        if not contract_no:
+            return [KnowledgeChunk(content="请先指定贷款合同号。")]
+        records = await fetch_repayment_schedules(contract_no)
+        if not records:
+            return [KnowledgeChunk(content=f"未查询到合同 {contract_no} 的还款计划。")]
+        text = json.dumps(records, ensure_ascii=False, indent=2)
+        return [KnowledgeChunk(content=f"还款计划列表:\n{text}")]
 
 
 # ------------------------------------------------------------------ #

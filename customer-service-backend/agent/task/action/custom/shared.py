@@ -336,3 +336,172 @@ async def fetch_customer_notifications(customer_no: str) -> list[dict] | None:
     except Exception as e:
         logger.warning(f"fetch_customer_notifications failed: {e}")
         return None
+
+
+# ------------------------------------------------------------------ #
+#  服务产品                                                           #
+# ------------------------------------------------------------------ #
+
+async def fetch_service_products(
+    service_type: str | None = None,
+) -> list[dict] | None:
+    try:
+        url = f"{_base_url()}/api/v1/service-products"
+        if service_type:
+            url += f"?service_type={quote(service_type)}"
+        r = await _get(url)
+        return _extract_list(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_service_products failed: {e}")
+        return None
+
+
+# ------------------------------------------------------------------ #
+#  客户档案                                                           #
+# ------------------------------------------------------------------ #
+
+async def fetch_customer(customer_no: str) -> dict | None:
+    try:
+        r = await _get(
+            f"{_base_url()}/api/v1/customers/{quote(customer_no)}"
+        )
+        data = r.json()
+        return _extract_data(data)
+    except Exception as e:
+        logger.warning(f"fetch_customer failed: {e}")
+        return None
+
+
+# ------------------------------------------------------------------ #
+#  客户状态历史                                                       #
+# ------------------------------------------------------------------ #
+
+async def fetch_customer_status_history(
+    customer_no: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> list[dict] | None:
+    try:
+        url = f"{_base_url()}/api/v1/customers/{quote(customer_no)}/status-history"
+        params: list[str] = []
+        if start_date:
+            params.append(f"start_date={quote(start_date)}")
+        if end_date:
+            params.append(f"end_date={quote(end_date)}")
+        if params:
+            url += "?" + "&".join(params)
+        r = await _get(url)
+        return _extract_list(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_customer_status_history failed: {e}")
+        return None
+
+
+# ------------------------------------------------------------------ #
+#  理财净值                                                           #
+# ------------------------------------------------------------------ #
+
+async def fetch_wealth_product_navs(
+    product_code: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> list[dict] | None:
+    try:
+        url = (
+            f"{_base_url()}/api/v1/wealth/products/{quote(product_code)}/navs"
+            f"?page_size=30"
+        )
+        if start_date:
+            url += f"&start_date={quote(start_date)}"
+        if end_date:
+            url += f"&end_date={quote(end_date)}"
+        r = await _get(url)
+        return _extract_list(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_wealth_product_navs failed: {e}")
+        return None
+
+
+# ------------------------------------------------------------------ #
+#  理财收益                                                           #
+# ------------------------------------------------------------------ #
+
+async def fetch_wealth_incomes(
+    customer_no: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> list[dict] | None:
+    try:
+        url = (
+            f"{_base_url()}/api/v1/customers/{quote(customer_no)}/wealth/incomes"
+            f"?page_size=100"
+        )
+        if start_date:
+            url += f"&start_date={quote(start_date)}"
+        if end_date:
+            url += f"&end_date={quote(end_date)}"
+        r = await _get(url)
+        return _extract_list(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_wealth_incomes failed: {e}")
+        return None
+
+
+# ------------------------------------------------------------------ #
+#  理财订单详情                                                       #
+# ------------------------------------------------------------------ #
+
+async def fetch_wealth_order(order_no: str) -> dict | None:
+    try:
+        r = await _get(
+            f"{_base_url()}/api/v1/wealth/orders/{quote(order_no)}"
+        )
+        return _extract_data(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_wealth_order failed: {e}")
+        return None
+
+
+# ------------------------------------------------------------------ #
+#  授信申请详情                                                       #
+# ------------------------------------------------------------------ #
+
+async def fetch_credit_application(credit_application_no: str) -> dict | None:
+    try:
+        r = await _get(
+            f"{_base_url()}/api/v1/credit/applications/{quote(credit_application_no)}"
+        )
+        return _extract_data(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_credit_application failed: {e}")
+        return None
+
+
+# ------------------------------------------------------------------ #
+#  贷款申请详情                                                       #
+# ------------------------------------------------------------------ #
+
+async def fetch_loan_application(application_no: str) -> dict | None:
+    try:
+        r = await _get(
+            f"{_base_url()}/api/v1/loan/applications/{quote(application_no)}"
+        )
+        return _extract_data(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_loan_application failed: {e}")
+        return None
+
+
+# ------------------------------------------------------------------ #
+#  还款计划                                                           #
+# ------------------------------------------------------------------ #
+
+async def fetch_repayment_schedules(contract_no: str) -> list[dict] | None:
+    try:
+        r = await _get(
+            f"{_base_url()}/api/v1/loan/contracts/{quote(contract_no)}/repayment-schedules"
+        )
+        return _extract_list(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_repayment_schedules failed: {e}")
+        return None
