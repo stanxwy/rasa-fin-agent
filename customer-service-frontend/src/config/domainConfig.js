@@ -272,6 +272,11 @@ export const CURRENCY_NAMES = {
   CNY: '人民币', USD: '美元', HKD: '港币', EUR: '欧元', GBP: '英镑', JPY: '日元',
 }
 
+/** 币种代码 → 货币符号 */
+export const CURRENCY_SYMBOLS = {
+  CNY: '￥', USD: '$', HKD: 'HK$', EUR: '€', GBP: '£', JPY: '¥',
+}
+
 /** 风险等级代码 → 中文名 */
 export const RISK_NAMES = {
   C1: '保守型', C2: '稳健型', C3: '平衡型', C4: '成长型', C5: '进取型',

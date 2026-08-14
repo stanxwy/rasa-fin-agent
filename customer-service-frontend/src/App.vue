@@ -11,7 +11,7 @@ import userProfileAvatar from './assets/userProfileAvatar.svg'
 import {
   APP, WELCOME, BUSINESS_PANEL, SESSION_LIST, UI,
   LOAN_PRODUCT_NAMES, WEALTH_PRODUCT_NAMES, ACCOUNT_PRODUCT_NAMES,
-  CATEGORY_NAMES, CURRENCY_NAMES, RISK_NAMES, CUSTOMER_TYPE_NAMES,
+  CATEGORY_NAMES, CURRENCY_NAMES, CURRENCY_SYMBOLS, RISK_NAMES, CUSTOMER_TYPE_NAMES,
   OPEN_STATUS_NAMES, REPAYMENT_METHOD_NAMES, WEALTH_OPERATION_NAMES,
   WEALTH_TYPE_NAMES, NOTIFICATION_TYPE_NAMES, SEND_STATUS_NAMES,
   COLLECTION_STATUS_NAMES, BILL_STATUS_NAMES, OVERDUE_STATUS_NAMES,
@@ -86,6 +86,7 @@ function wealthName(code) { return buildWealthName(code) }
 function accountProductName(code) { return mapCode(code, ACCOUNT_PRODUCT_NAMES) }
 function categoryName(code) { return mapCode(code, CATEGORY_NAMES) }
 function currencyName(code) { return mapCode(code, CURRENCY_NAMES) }
+function currencySymbol(code) { return CURRENCY_SYMBOLS[code] || '￥' }
 function riskName(code) { return mapCode(code, RISK_NAMES) }
 function customerTypeName(code) { return mapCode(code, CUSTOMER_TYPE_NAMES) }
 function openStatusName(code) { return mapCode(code, OPEN_STATUS_NAMES) }
@@ -1251,7 +1252,7 @@ onUnmounted(() => {})
             @click="sendSidebarObject('bank_account', acc.account_no, acc.account_product?.product_name || BUSINESS_PANEL.CARD_DEFAULTS.accountTitle, { balance: acc.balance_amount, currency: acc.currency_code, status: acc.account_status })">
             <div class="card-top">
               <div class="card-title">{{ acc.account_product?.product_name || accountProductName(acc.account_product?.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.accountTitle }}</div>
-              <div class="card-amount">{{ currencyName(acc.currency_code) }} {{ fmtAmt(acc.balance_amount) }}</div>
+              <div class="card-amount">{{ currencySymbol(acc.currency_code) }}{{ fmtAmt(acc.balance_amount) }}</div>
             </div>
             <div class="card-meta">账号：{{ acc.account_no }}</div>
             <div class="card-meta">币种：{{ currencyName(acc.currency_code) }}（{{ acc.currency_code || 'CNY' }}）</div>
@@ -1263,10 +1264,10 @@ onUnmounted(() => {})
         <div v-else-if="activeTab === 'bankcards'" class="sidebar-list">
           <div v-if="!bankCards.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.bankcards }}</div>
           <article v-for="c in bankCards" :key="c.card_no" class="sidebar-card clickable"
-            @click="sendSidebarObject('bank_card', c.card_no, (c.card_level ? c.card_level + ' ' : '') + accountProductName(c.account_product_name || '') || BUSINESS_PANEL.CARD_DEFAULTS.bankCardTitle, { type: c.card_type, status: c.card_status, account_no: c.account_no, balance: c.balance_amount })">
+            @click="sendSidebarObject('bank_card', c.card_no, accountProductName(c.account_product_name || '') || BUSINESS_PANEL.CARD_DEFAULTS.bankCardTitle, { type: c.card_type, status: c.card_status, account_no: c.account_no, balance: c.balance_amount })">
             <div class="card-top">
-              <div class="card-title">{{ (c.card_level ? c.card_level + ' ' : '') + (accountProductName(c.account_product_name) || BUSINESS_PANEL.CARD_DEFAULTS.bankCardTitle) }}</div>
-              <div class="card-amount">{{ currencyName(c.currency_code) }} {{ fmtAmt(c.balance_amount) }}</div>
+              <div class="card-title">{{ accountProductName(c.account_product_name) || BUSINESS_PANEL.CARD_DEFAULTS.bankCardTitle }}</div>
+              <div class="card-amount">{{ currencySymbol(c.currency_code) }}{{ fmtAmt(c.balance_amount) }}</div>
             </div>
             <div class="card-meta">卡号：{{ maskCardNo(c.card_no) }}</div>
             <div class="card-meta">类型：{{ c.card_type }} · 状态：{{ c.card_status }}</div>
@@ -1279,10 +1280,10 @@ onUnmounted(() => {})
         <div v-else-if="activeTab === 'creditcards'" class="sidebar-list">
           <div v-if="!creditCards.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.creditcards }}</div>
           <article v-for="c in creditCards" :key="c.card_no" class="sidebar-card clickable"
-            @click="sendSidebarObject('credit_card', c.card_no, (c.card_level ? c.card_level + ' ' : '') + (c.card_type === 'credit' ? '信用卡' : BUSINESS_PANEL.CARD_DEFAULTS.creditCardTitle), { type: c.card_type, status: c.card_status, account_no: c.account_no })">
+            @click="sendSidebarObject('credit_card', c.card_no, c.card_type === 'credit' ? '信用卡' : BUSINESS_PANEL.CARD_DEFAULTS.creditCardTitle, { type: c.card_type, status: c.card_status, account_no: c.account_no })">
             <div class="card-top">
-              <div class="card-title">{{ (c.card_level ? c.card_level + ' ' : '') + (c.card_type === 'credit' ? '信用卡' : BUSINESS_PANEL.CARD_DEFAULTS.creditCardTitle) }}</div>
-              <div class="card-amount">{{ currencyName(c.currency_code) }} {{ fmtAmt(c.balance_amount) }}</div>
+              <div class="card-title">{{ (c.card_type === 'credit' ? '信用卡' : BUSINESS_PANEL.CARD_DEFAULTS.creditCardTitle) }}</div>
+              <div class="card-amount">{{ currencySymbol(c.currency_code) }}{{ fmtAmt(c.balance_amount) }}</div>
             </div>
             <div class="card-meta">卡号：{{ maskCardNo(c.card_no) }}</div>
             <div class="card-meta">状态：{{ c.card_status }}</div>
@@ -2553,10 +2554,15 @@ onUnmounted(() => {})
 }
 
 .card-title {
+  flex: 1;
+  min-width: 0;
   font-size: 15px;
   line-height: 1.5;
   color: var(--color-text-primary);
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-amount {

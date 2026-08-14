@@ -505,3 +505,18 @@ async def fetch_repayment_schedules(contract_no: str) -> list[dict] | None:
     except Exception as e:
         logger.warning(f"fetch_repayment_schedules failed: {e}")
         return None
+
+
+# ------------------------------------------------------------------ #
+#  还款详情                                                           #
+# ------------------------------------------------------------------ #
+
+async def fetch_repayment_detail(repayment_no: str) -> dict | None:
+    try:
+        r = await _get(
+            f"{_base_url()}/api/v1/repayments/{quote(repayment_no)}"
+        )
+        return _extract_data(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_repayment_detail failed: {e}")
+        return None

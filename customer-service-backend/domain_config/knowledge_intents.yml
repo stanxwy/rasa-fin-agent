@@ -34,12 +34,43 @@ intents:
       - api.loan
     requires_object: loan
 
-  wealth_product_info:
-    id: wealth_product_info
-    description: 理财产品信息查询，包括产品风险等级、预期收益率、起购金额等
+  wealth_product_list:
+    id: wealth_product_list
+    description: 查询可售理财产品列表，包括产品名称、风险等级、预期收益率、起购金额等
+    provider_ids:
+      - api.wealth_product_list
+
+  wealth_product_detail:
+    id: wealth_product_detail
+    description: 查询理财产品详情，包括产品基本信息、费率、风险等级等
     provider_ids:
       - api.wealth_product
     requires_object: wealth_product
+
+  wealth_nav_info:
+    id: wealth_nav_info
+    description: 查询理财产品净值，包括单位净值、累计净值等
+    provider_ids:
+      - api.wealth_navs
+    requires_object: wealth_product
+
+  wealth_income_info:
+    id: wealth_income_info
+    description: 客户理财收益查询，包括投资收益明细、收益金额等
+    provider_ids:
+      - api.wealth_income
+
+  wealth_position_info:
+    id: wealth_position_info
+    description: 客户理财持仓查询，包括持有产品、持仓份额、持仓市值等
+    provider_ids:
+      - api.wealth_position
+
+  wealth_order_info:
+    id: wealth_order_info
+    description: 理财订单详情查询，包括订单状态、确认份额、交易流水等
+    provider_ids:
+      - api.wealth_order
 
   fund_product_info:
     id: fund_product_info
@@ -65,6 +96,79 @@ intents:
     requires_object: transfer
     accepts_objects:
       - bank_account
+
+  account_product_info:
+    id: account_product_info
+    description: 账户产品目录查询，包括账户类型、币种、起存金额、转账限额等
+    provider_ids:
+      - api.account_product_catalog
+
+  service_product_info:
+    id: service_product_info
+    description: 服务产品目录查询，包括服务类型、服务费、服务状态等
+    provider_ids:
+      - api.service_product_catalog
+
+  customer_profile_info:
+    id: customer_profile_info
+    description: 客户档案查询，包括客户基本信息、风险等级、KYC状态等
+    provider_ids:
+      - api.customer_profile
+
+  customer_status_history_info:
+    id: customer_status_history_info
+    description: 客户状态变更历史查询，包括状态变更时间、变更原因等
+    provider_ids:
+      - api.customer_status_history
+
+  credit_application_info:
+    id: credit_application_info
+    description: 授信申请详情查询，包括申请信息、审批记录、授信结果等
+    provider_ids:
+      - api.credit_application
+
+  credit_limit_info:
+    id: credit_limit_info
+    description: 客户授信额度查询，包括总额度、已用额度、可用额度等
+    provider_ids:
+      - api.credit_limit
+
+  loan_application_info:
+    id: loan_application_info
+    description: 贷款申请详情查询，包括申请信息、审批流程等
+    provider_ids:
+      - api.loan_application
+
+  repayment_schedule_info:
+    id: repayment_schedule_info
+    description: 还款计划查询，包括每期应还金额、还款日期、剩余本金等
+    provider_ids:
+      - api.repayment_schedule
+    requires_object: loan
+
+  repayment_detail_info:
+    id: repayment_detail_info
+    description: 还款详情查询，包括还款金额、还款状态、还款方式等
+    provider_ids:
+      - api.repayment_detail
+
+  repayment_bill_info:
+    id: repayment_bill_info
+    description: 还款账单查询，包括账单金额、账单状态、到期日等
+    provider_ids:
+      - api.repayment_bill
+
+  overdue_info:
+    id: overdue_info
+    description: 逾期记录查询，包括逾期金额、逾期天数、逾期状态等
+    provider_ids:
+      - api.overdue
+
+  notification_info:
+    id: notification_info
+    description: 客户通知查询，包括通知类型、通知内容、发送状态等
+    provider_ids:
+      - api.notification
 
   interest_rate_policy:
     id: interest_rate_policy
@@ -107,65 +211,3 @@ intents:
     provider_ids:
       - faq.default
       - rag.default
-
-  account_product_info:
-    id: account_product_info
-    description: 账户产品目录查询，包括账户类型、币种、起存金额、转账限额等
-    provider_ids:
-      - api.account_product_catalog
-
-  service_product_info:
-    id: service_product_info
-    description: 服务产品目录查询，包括服务类型、服务费、服务状态等
-    provider_ids:
-      - api.service_product_catalog
-
-  customer_profile_info:
-    id: customer_profile_info
-    description: 客户档案查询，包括客户基本信息、风险等级、KYC状态等
-    provider_ids:
-      - api.customer_profile
-
-  customer_status_history_info:
-    id: customer_status_history_info
-    description: 客户状态变更历史查询，包括状态变更时间、变更原因等
-    provider_ids:
-      - api.customer_status_history
-
-  wealth_nav_info:
-    id: wealth_nav_info
-    description: 理财产品净值查询，包括单位净值、累计净值等
-    provider_ids:
-      - api.wealth_navs
-    requires_object: wealth_product
-
-  wealth_income_info:
-    id: wealth_income_info
-    description: 客户理财收益查询，包括投资收益明细、收益金额等
-    provider_ids:
-      - api.wealth_income
-
-  wealth_order_info:
-    id: wealth_order_info
-    description: 理财订单详情查询，包括订单状态、确认份额、交易流水等
-    provider_ids:
-      - api.wealth_order
-
-  credit_application_info:
-    id: credit_application_info
-    description: 授信申请详情查询，包括申请信息、审批记录、授信结果等
-    provider_ids:
-      - api.credit_application
-
-  loan_application_info:
-    id: loan_application_info
-    description: 贷款申请详情查询，包括申请信息、审批流程等
-    provider_ids:
-      - api.loan_application
-
-  repayment_schedule_info:
-    id: repayment_schedule_info
-    description: 还款计划查询，包括每期应还金额、还款日期、剩余本金等
-    provider_ids:
-      - api.repayment_schedule
-    requires_object: loan
