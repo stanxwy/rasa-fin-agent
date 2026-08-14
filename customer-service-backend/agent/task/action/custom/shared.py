@@ -1,4 +1,5 @@
 import contextvars
+import json
 import logging
 import uuid
 from typing import Any
@@ -53,15 +54,17 @@ async def _post(url: str, payload: dict | None = None) -> Any:
     body = payload or {}
     if "request_no" not in body:
         body["request_no"] = _make_idempotent_key()
-    logger.info(f"[fin-backend] POST {url} body_keys={list(body.keys())}")
-    return await http_client.http_client.post(url, json=body, headers=_make_headers())
+    headers = _make_headers()
+    logger.info(f"[fin-backend] POST {url}\n  headers: {json.dumps(headers, indent=2, ensure_ascii=False)}\n  payload: {json.dumps(body, indent=2, ensure_ascii=False)}")
+    return await http_client.http_client.post(url, json=body, headers=headers)
 
 
 async def _patch(url: str, payload: dict | None = None) -> Any:
     """统一 PATCH 请求：记录请求。"""
     body = payload or {}
-    logger.info(f"[fin-backend] PATCH {url} body_keys={list(body.keys())}")
-    return await http_client.http_client.patch(url, json=body, headers=_make_headers())
+    headers = _make_headers()
+    logger.info(f"[fin-backend] PATCH {url}\n  headers: {json.dumps(headers, indent=2, ensure_ascii=False)}\n  payload: {json.dumps(body, indent=2, ensure_ascii=False)}")
+    return await http_client.http_client.patch(url, json=body, headers=headers)
 
 
 def _extract_data(result: dict | None) -> dict | None:

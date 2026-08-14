@@ -24,6 +24,7 @@ from agent.api.schemas import (
     ChatResponse,
     HistoryResponse,
     SessionDeleteRequest,
+    SessionResetRequest,
     SessionsResponse,
 )
 from agent.converters.chat_converter import (
@@ -102,14 +103,14 @@ async def list_sessions(
 
 @router.post("/api/chat/session/reset")
 async def reset_session(
-    sender_id: str,
+    payload: SessionResetRequest,
     service: DialogueService = Depends(get_dialogue_service)
 ):
     """
     Close the sender's current session so the next message starts a new one.
     Backs the UI "新对话" button.
     """
-    await service.reset_session(sender_id)
+    await service.reset_session(payload.sender_id)
     return {"ok": True}
 
 

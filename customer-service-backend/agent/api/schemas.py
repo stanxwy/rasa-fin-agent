@@ -61,6 +61,9 @@ class SessionsResponse(BaseModel):
     sessions: list[SessionSummary]
 
 
+class SessionResetRequest(BaseModel):
+    sender_id: str
+
 class SessionDeleteRequest(BaseModel):
     sender_id: str
     session_id: str
