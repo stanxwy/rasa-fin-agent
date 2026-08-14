@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class ChatObject(BaseModel):
     id: str
-    type: Literal["order", "product"]
+    type: str
     title: str | None = None
     attributes: dict = {}
 

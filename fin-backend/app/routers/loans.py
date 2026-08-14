@@ -130,11 +130,21 @@ def list_loan_products(
         f"""
         SELECT
             product.product_code,
+            product.product_name,
+            product.loan_type,
+            product.annual_interest_rate,
             product.min_interest_rate,
             product.max_interest_rate,
+            product.min_amount,
+            product.max_amount,
             product.min_term_months,
-            product.max_term_months
+            product.max_term_months,
+            product.repayment_method,
+            product.product_status,
+            risk.risk_level_code AS risk_level_code,
+            risk.risk_level_name AS risk_level_name
         FROM loan_product AS product
+        LEFT JOIN dim_risk_level AS risk ON risk.id = product.risk_level_id
         {where_sql}
         ORDER BY product.product_code
         """,
@@ -145,6 +155,21 @@ def list_loan_products(
             "list": [
                 {
                     "product_code": row["product_code"],
+                    "product_name": row["product_name"],
+                    "loan_type": row["loan_type"],
+                    "annual_interest_rate": str(row["annual_interest_rate"]),
+                    "min_interest_rate": str(row["min_interest_rate"]),
+                    "max_interest_rate": str(row["max_interest_rate"]),
+                    "min_amount": str(row["min_amount"]),
+                    "max_amount": str(row["max_amount"]),
+                    "min_term_months": row["min_term_months"],
+                    "max_term_months": row["max_term_months"],
+                    "repayment_method": row["repayment_method"],
+                    "product_status": row["product_status"],
+                    "risk_level": {
+                        "risk_level_code": row["risk_level_code"],
+                        "risk_level_name": row["risk_level_name"],
+                    },
                     "eligibility_rules": [],
                     "rate_range": {
                         "min": str(row["min_interest_rate"]),

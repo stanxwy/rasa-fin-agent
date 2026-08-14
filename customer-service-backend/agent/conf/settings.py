@@ -42,14 +42,3 @@ def get_settings():
 # @lru_cache 会修改它所装饰的函数，
 # 使其返回第一次返回的相同值，而不是每次都重新计算并执行函数代码。
 settings = get_settings()
-
-if __name__ == '__main__':
-    print(settings.llm_base_url)
-    print(settings.llm_base_url)
-
-"""
-python -m agent.conf.settings
-get_settings will be called only once...
-https://api.stepfun.com/v1
-https://api.stepfun.com/v1
-"""

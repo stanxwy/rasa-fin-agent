@@ -147,11 +147,11 @@ export const UI = {
     order:   '订单对象',
     product: '商品对象',
   },
-  /** 订单/商品识别标签 */
+  /** 对象识别标签 */
   objectLabel: {
     orderId:   '订单号',
     productId: '商品号',
-    genericId: '号',
+    genericId: '编号',
   },
 }
 
@@ -314,4 +314,38 @@ export const BILL_STATUS_NAMES = {
 /** 逾期状态 → 中文名 */
 export const OVERDUE_STATUS_NAMES = {
   new: '新建', monitoring: '关注中', collection: '催收中', settled: '已结清',
+}
+
+/** 交易类型 → 中文名 */
+export const TRANSACTION_TYPE_NAMES = {
+  transfer: '转账',
+  consume: '消费',
+  deposit: '存款',
+  withdraw: '取款',
+  refund: '退款',
+  adjustment: '调账',
+  adjustment_credit: '调账-贷',
+  wealth_purchase: '理财申购',
+  wealth_redeem: '理财赎回',
+  wealth_income: '理财收益',
+  loan_disbursement: '贷款放款',
+  loan_repayment: '贷款还款',
+  income_settle: '收益结算',
+  collateral_disposal: '抵押物处置',
+  payment: '支付',
+}
+
+/** 业务对象类型 → 徽标中文名 */
+export const OBJECT_BADGE_NAMES = {
+  order: '订单对象',
+  product: '商品对象',
+  bank_account: '银行账户',
+  bank_card: '银行卡',
+  credit_card: '信用卡',
+  deposit: '存款',
+  loan: '贷款',
+  wealth_product: '理财产品',
+  fund_product: '基金产品',
+  transaction: '交易流水',
+  transfer: '转账记录',
 }

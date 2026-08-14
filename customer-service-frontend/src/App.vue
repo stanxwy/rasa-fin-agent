@@ -15,6 +15,7 @@ import {
   OPEN_STATUS_NAMES, REPAYMENT_METHOD_NAMES, WEALTH_OPERATION_NAMES,
   WEALTH_TYPE_NAMES, NOTIFICATION_TYPE_NAMES, SEND_STATUS_NAMES,
   COLLECTION_STATUS_NAMES, BILL_STATUS_NAMES, OVERDUE_STATUS_NAMES,
+  TRANSACTION_TYPE_NAMES, OBJECT_BADGE_NAMES,
 } from './config/domainConfig.js'
 
 // sender_id 通过 URL 参数传入（?sender_id=xxx），未指定时默认 CUS00000001
@@ -92,6 +93,7 @@ function sendStatusName(code) { return mapCode(code, SEND_STATUS_NAMES) }
 function collectionStatusName(code) { return mapCode(code, COLLECTION_STATUS_NAMES) }
 function billStatusName(code) { return mapCode(code, BILL_STATUS_NAMES) }
 function overdueStatusName(code) { return mapCode(code, OVERDUE_STATUS_NAMES) }
+function transactionTypeName(code) { return mapCode(code, TRANSACTION_TYPE_NAMES) }
 
 // 金额格式化（保留两位小数，带符号）
 function fmtAmt(val) {
@@ -484,14 +486,15 @@ function getObjectTitle(message) {
   if (payload.title) {
     return payload.title
   }
-  return message.objectType === 'order' ? UI.objectBadge.order : UI.objectBadge.product
+  return OBJECT_BADGE_NAMES[message.objectType] || '业务对象'
 }
 
 function getObjectIdentifier(message) {
   const payload = message.payload ?? {}
   const id = payload.order_id ?? payload.product_id ?? payload.id
-  const label = message.objectType === 'order' ? UI.objectLabel.orderId : UI.objectLabel.productId
-  return id ? `${label}：${id}` : label
+  if (!id) return ''
+  const label = UI.objectLabel[message.objectType] || UI.objectLabel.genericId
+  return `${label}：${id}`
 }
 
 function getObjectSummary(message) {
@@ -500,15 +503,30 @@ function getObjectSummary(message) {
     const status = payload.status ?? payload.attributes?.status
     return status ? `订单状态：${status}` : '订单'
   }
-  return formatProductSummary(payload)
+  if (message.objectType === 'product') {
+    return formatProductSummary(payload)
+  }
+  // 金融对象：从 attributes 中提取关键信息
+  const attrs = payload.attributes ?? payload
+  const parts = []
+  if (attrs.balance) parts.push(`余额：${fmtAmt(attrs.balance)}`)
+  if (attrs.amount) parts.push(`金额：${fmtAmt(attrs.amount)}`)
+  if (attrs.yield) parts.push(`收益率：${(Number(attrs.yield) * 100).toFixed(2)}%`)
+  if (attrs.rate) parts.push(`利率：${(Number(attrs.rate) * 100).toFixed(2)}%`)
+  if (attrs.status) parts.push(`状态：${attrs.status}`)
+  return parts.join(' · ') || OBJECT_BADGE_NAMES[message.objectType] || ''
 }
 
 function getObjectAmount(message) {
   const payload = message.payload ?? {}
-  const amount = message.objectType === 'order'
-    ? payload.amount ?? payload.attributes?.amount
-    : payload.price ?? payload.attributes?.price
-  return formatAmount(amount)
+  if (message.objectType === 'order') {
+    return formatAmount(payload.amount ?? payload.attributes?.amount)
+  }
+  if (message.objectType === 'product') {
+    return formatAmount(payload.price ?? payload.attributes?.price)
+  }
+  // 金融对象不显示金额行
+  return ''
 }
 
 // 通用金融 API GET 请求封装
@@ -1013,7 +1031,7 @@ onUnmounted(() => {})
                   <template v-if="item.userMessage.type === 'object'">
                     <div class="object-card" :class="`object-card-${item.userMessage.objectType}`">
                       <div class="object-card-badge">
-                        {{ item.userMessage.objectType === 'order' ? UI.objectBadge.order : UI.objectBadge.product }}
+                        {{ OBJECT_BADGE_NAMES[item.userMessage.objectType] || item.userMessage.objectType }}
                       </div>
                       <img
                         v-if="item.userMessage.type === 'object' && item.userMessage.payload.cover_url"
@@ -1028,7 +1046,7 @@ onUnmounted(() => {})
                         <span v-if="item.userMessage.objectType === 'order' && item.userMessage.payload.status" class="status-badge" :class="getStatusClass(item.userMessage.payload.status)">{{ item.userMessage.payload.status }}</span>
                         <span v-else>{{ getObjectSummary(item.userMessage) }}</span>
                       </div>
-                      <div class="object-card-price">{{ getObjectAmount(item.userMessage) }}</div>
+                      <div v-if="getObjectAmount(item.userMessage)" class="object-card-price">{{ getObjectAmount(item.userMessage) }}</div>
                     </div>
                   </template>
                   <template v-else>
@@ -1052,7 +1070,7 @@ onUnmounted(() => {})
                     <template v-if="botMsg.type === 'object'">
                       <div class="object-card" :class="`object-card-${botMsg.objectType}`">
                         <div class="object-card-badge">
-                          {{ botMsg.objectType === 'order' ? UI.objectBadge.order : UI.objectBadge.product }}
+                          {{ OBJECT_BADGE_NAMES[botMsg.objectType] || botMsg.objectType }}
                         </div>
                         <img
                           v-if="botMsg.type === 'object' && botMsg.payload.cover_url"
@@ -1067,7 +1085,7 @@ onUnmounted(() => {})
                           <span v-if="botMsg.objectType === 'order' && botMsg.payload.status" class="status-badge" :class="getStatusClass(botMsg.payload.status)">{{ botMsg.payload.status }}</span>
                           <span v-else>{{ getObjectSummary(botMsg) }}</span>
                         </div>
-                        <div class="object-card-price">{{ getObjectAmount(botMsg) }}</div>
+                        <div v-if="getObjectAmount(botMsg)" class="object-card-price">{{ getObjectAmount(botMsg) }}</div>
                       </div>
                     </template>
                     <template v-else>
@@ -1173,9 +1191,9 @@ onUnmounted(() => {})
         <div v-else-if="activeTab === 'transactions'" class="sidebar-list">
           <div v-if="!transactions.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.transactions }}</div>
           <article v-for="txn in transactions" :key="txn.transaction_no || txn.id" class="sidebar-card clickable"
-            @click="sendSidebarObject('transaction', txn.transaction_no || txn.id, txn.transaction_type || BUSINESS_PANEL.CARD_DEFAULTS.transactionTitle, { amount: txn.transaction_amount, status: txn.transaction_status, time: txn.transaction_at })">
+            @click="sendSidebarObject('transaction', txn.transaction_no || txn.id, transactionTypeName(txn.transaction_type) || BUSINESS_PANEL.CARD_DEFAULTS.transactionTitle, { amount: txn.transaction_amount, status: txn.transaction_status, time: txn.transaction_at })">
             <div class="card-top">
-              <div class="card-title">{{ txn.transaction_type || BUSINESS_PANEL.CARD_DEFAULTS.transactionTitle }}</div>
+              <div class="card-title">{{ transactionTypeName(txn.transaction_type) || BUSINESS_PANEL.CARD_DEFAULTS.transactionTitle }}</div>
               <div class="card-amount" :style="{ color: Number(txn.transaction_amount) >= 0 ? '#00b42a' : '#f53f3f' }">
                 {{ Number(txn.transaction_amount) >= 0 ? '+' : '' }}{{ fmtAmt(txn.transaction_amount) }}
               </div>

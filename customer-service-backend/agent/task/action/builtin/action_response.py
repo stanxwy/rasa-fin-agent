@@ -70,19 +70,3 @@ class ActionResponse(Action):
             "persona": self._persona,
         })
         return bot_message
-
-if __name__ == '__main__':
-    import asyncio
-
-    from agent.domain.contexts import TaskContext
-
-    state = DialogueState(sender_id="u123", active_task=TaskContext(flow_id="f123", slots={"order_number": "12345"}))
-    action = ActionResponse(persona="你是一个中文电商客服助手，语气自然、友好、简洁。")
-    result = asyncio.run(action.run(state, {"mode": "static", "text": "好的，订单{{ slots.order_number }}的退款申请已提交"}))
-    print(result)
-
-"""
-python -m agent.task.action.builtin.action_response
-get_settings will be called only once...
-messages=[BotMessage(text='好的，订单12345的退款申请已提交', object=None)] slot_updates={}
-"""

@@ -15,8 +15,3 @@ class ActionListen(Action):
     async def run(self, state: DialogueState, action_kwargs: dict[str, Any]) -> ActionResult:
         logger.info(f"[{state.current_session_id}] waiting for user input...")
         return ActionResult()
-
-
-if __name__ == '__main__':
-    action =  ActionListen()
-    asyncio.run(action.run(DialogueState(sender_id="u123", active_task=None), None))

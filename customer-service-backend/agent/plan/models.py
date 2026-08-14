@@ -46,13 +46,13 @@ class TurnPlan(BaseModel):
     @classmethod
     def from_dict(cls, data: dict) -> "TurnPlan":
         return cls(
-            task=TaskTurnPlan.from_dict(data["task"]) 
+            task=TaskTurnPlan.from_dict(data["task"])
                 if data.get("task") is not None else None,
 
-            knowledge=KnowledgeTurnPlan.from_dict(data["knowledge"]) 
+            knowledge=KnowledgeTurnPlan.from_dict(data["knowledge"])
                 if data.get("knowledge") is not None else None,
-            
-            chitchat=ChitchatTurnPlan() 
+
+            chitchat=ChitchatTurnPlan()
                 if data.get("chitchat") is not None else None,
         )
 
@@ -73,43 +73,3 @@ class ClarifyReason(StrEnum):
 class TurnPlanValidationResult(BaseModel):
     valid: bool
     reason: ClarifyReason | None = None
-
-
-if __name__ == '__main__':
-    import json
-    json_str1 = """
-    {
-      "task": {
-        "commands": [
-          {"command": "start_flow", "flow": "refund_request"}
-        ]
-      },
-      "knowledge": null,
-      "chitchat": null
-    }
-    """
-
-    turn_plan1 = TurnPlan.from_dict(json.loads(json_str1))
-    print(turn_plan1)
-
-    json_str2 = """
-    {
-      "task": {
-        "commands": [
-          {"command": "set_slots", "slots": {"order_number": "A001"}}
-        ]
-      },
-      "knowledge": null,
-      "chitchat": null
-    }
-    """
-    # 转成dict
-    turn_plan2 = TurnPlan.from_dict(json.loads(json_str2))
-    print(turn_plan2)
-
-
-"""
-python -m agent.plan.models                                                                                                      
-task=TaskTurnPlan(commands=[StartFlowCommand(command='start_flow', flow='refund_request')]) knowledge=None chitchat=None                                                                                                
-task=TaskTurnPlan(commands=[SetSlotsCommand(command='set_slots', slots={'order_number': 'A001'})]) knowledge=None chitchat=None
-"""

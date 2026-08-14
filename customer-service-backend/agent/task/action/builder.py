@@ -99,7 +99,3 @@ def build_action_runner(persona: str = "") -> ActionRunner:
     register_builtin_actions(action_runner, persona=persona)
     register_custom_actions(action_runner)
     return action_runner
-
-
-if __name__ == '__main__':
-     build_action_runner()

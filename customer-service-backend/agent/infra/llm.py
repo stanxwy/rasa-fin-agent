@@ -18,6 +18,3 @@ llm: BaseChatModel = init_chat_model(
     base_url=settings.llm_base_url,
     temperature=0
 )
-
-if __name__ == '__main__':
-    print(llm.invoke("introduce yourself").content)

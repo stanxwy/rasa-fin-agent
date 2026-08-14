@@ -237,31 +237,3 @@ async def fetch_account_transactions(
 async def fetch_transfer_records(account_no: str) -> list[dict] | None:
     """查询账户的转账记录，复用交易明细接口并按 transaction_type=transfer 过滤。"""
     return await fetch_account_transactions(account_no, transaction_type="transfer")
-
-
-if __name__ == "__main__":
-    import asyncio
-    import json
-
-    async def test():
-        http_client.init_http_client()
-
-        account = await fetch_account("ACC20250101001")
-        print("=== account ===")
-        print(json.dumps(account, ensure_ascii=False, indent=2))
-
-        card = await fetch_card("6222000000000000001")
-        print("=== card ===")
-        print(json.dumps(card, ensure_ascii=False, indent=2))
-
-        loan_products = await fetch_loan_products()
-        print("=== loan products ===")
-        print(json.dumps(loan_products, ensure_ascii=False, indent=2))
-
-        wealth_products = await fetch_wealth_products()
-        print("=== wealth products ===")
-        print(json.dumps(wealth_products, ensure_ascii=False, indent=2))
-
-        await http_client.close_http_client()
-
-    asyncio.run(test())

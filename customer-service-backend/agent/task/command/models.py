@@ -34,8 +34,3 @@ COMMAND_NAME_TO_CLASS = {
     "cancel_flow": CancelFlowCommand,
     "resume_flow": ResumeFlowCommand,
 }
-
-
-if __name__ == '__main__':
-    command = {"command": "set_slots", "slots": {"order_number": "10001"}}
-    print(Command.from_dict(command))

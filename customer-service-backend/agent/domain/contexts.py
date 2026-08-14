@@ -78,31 +78,3 @@ SystemContextUnion = Annotated[
     CollectedSystemContext,
     Field(discriminator="flow_id")
 ]
-
-
-if __name__ == '__main__':
-
-    # 定义StartedSystemContext的字典数据
-    data = {
-        "flow_id": "system_task_started",
-        "step_id": "start",
-        "started_flow_id": "order_status_query",
-        "started_flow_name": "订单状态查询"
-    }
-
-    # 用父类的序列化方法没办法将子类的字段序列化出来
-    obj1 = SystemContext.model_validate(data)
-    print(type(obj1))
-    print(obj1)
-
-    # 用子类的序列化方法每次要区分到底是哪个子类对象
-    obj2 = StartedSystemContext.model_validate(data)
-    print(type(obj2))
-    print(obj2)
-
-
-    system_context_adapter = TypeAdapter(SystemContextUnion)
-    obj = system_context_adapter.validate_python(data)
-
-    print(type(obj))
-    print(obj)
