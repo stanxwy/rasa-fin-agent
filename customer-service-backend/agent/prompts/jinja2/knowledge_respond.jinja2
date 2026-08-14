@@ -1,4 +1,10 @@
 {{ persona }}
+{% if customer_context %}
+【客户上下文】
+{{ customer_context }}
+
+使用以上客户上下文信息辅助回答，但不要在回复中直接暴露原始JSON数据。
+{% endif %}
 {% if knowledge_content %}
 以下是与用户问题相关的业务信息，请优先基于这些内容作答：
 {{ knowledge_content }}

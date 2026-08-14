@@ -21,7 +21,8 @@ class KnowledgeResponder:
         self,
         user_message: UserMessage,
         recent_turns: list[Turn],
-        chunks: list[KnowledgeChunk]
+        chunks: list[KnowledgeChunk],
+        customer_context: str = "",
     ) -> list[BotMessage]:
 
         prompt_template_str = load_prompt("knowledge_respond")
@@ -37,6 +38,7 @@ class KnowledgeResponder:
             "user_message": HistoryBuilder.render_user_message(user_message),
             "history": HistoryBuilder.build(recent_turns),
             "knowledge_content": "\n\n".join([chunk.content for chunk in chunks]),
+            "customer_context": customer_context,
             "persona": self._persona,
         })
 

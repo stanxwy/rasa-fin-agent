@@ -1,4 +1,47 @@
 intents:
+  # ======================================================== #
+  #  foundation — 基础配置接口                                  #
+  # ======================================================== #
+
+  account_product_info:
+    id: account_product_info
+    description: 账户产品目录查询，包括账户类型、币种、起存金额、转账限额等
+    provider_ids:
+      - api.account_product_catalog
+
+  service_product_info:
+    id: service_product_info
+    description: 服务产品目录查询，包括服务类型、服务费、服务状态等
+    provider_ids:
+      - api.service_product_catalog
+
+  deposit_info:
+    id: deposit_info
+    description: 存款产品信息查询，包括存款类型、利率、起存金额等
+    provider_ids:
+      - api.deposit
+    requires_object: deposit
+
+  # ======================================================== #
+  #  customers — 客户接口                                       #
+  # ======================================================== #
+
+  customer_profile_info:
+    id: customer_profile_info
+    description: 客户档案查询，包括客户基本信息、风险等级、KYC状态等
+    provider_ids:
+      - api.customer_profile
+
+  customer_status_history_info:
+    id: customer_status_history_info
+    description: 客户状态变更历史查询，包括状态变更时间、变更原因等
+    provider_ids:
+      - api.customer_status_history
+
+  # ======================================================== #
+  #  accounts — 账户与交易接口                                    #
+  # ======================================================== #
+
   bank_account_info:
     id: bank_account_info
     description: 银行账户信息查询，包括账户余额、可用余额、冻结金额、账户状态等
@@ -20,19 +63,27 @@ intents:
       - api.credit_card
     requires_object: credit_card
 
-  deposit_info:
-    id: deposit_info
-    description: 存款产品信息查询，包括存款类型、利率、起存金额等
+  transaction_info:
+    id: transaction_info
+    description: 交易流水查询，包括交易金额、交易状态、交易时间、交易对手等
     provider_ids:
-      - api.deposit
-    requires_object: deposit
+      - api.transaction
+    requires_object: transaction
+    accepts_objects:
+      - bank_account
 
-  loan_info:
-    id: loan_info
-    description: 贷款信息查询，包括贷款产品利率、期限、还款方式，或贷款合同借据详情
+  transfer_info:
+    id: transfer_info
+    description: 转账记录查询，包括转账金额、转账状态、收款方信息等
     provider_ids:
-      - api.loan
-    requires_object: loan
+      - api.transfer
+    requires_object: transfer
+    accepts_objects:
+      - bank_account
+
+  # ======================================================== #
+  #  wealth — 理财接口                                          #
+  # ======================================================== #
 
   wealth_product_list:
     id: wealth_product_list
@@ -54,17 +105,17 @@ intents:
       - api.wealth_navs
     requires_object: wealth_product
 
-  wealth_income_info:
-    id: wealth_income_info
-    description: 客户理财收益查询，包括投资收益明细、收益金额等
-    provider_ids:
-      - api.wealth_income
-
   wealth_position_info:
     id: wealth_position_info
     description: 客户理财持仓查询，包括持有产品、持仓份额、持仓市值等
     provider_ids:
       - api.wealth_position
+
+  wealth_income_info:
+    id: wealth_income_info
+    description: 客户理财收益查询，包括投资收益明细、收益金额等
+    provider_ids:
+      - api.wealth_income
 
   wealth_order_info:
     id: wealth_order_info
@@ -79,47 +130,9 @@ intents:
       - api.fund_product
     requires_object: fund_product
 
-  transaction_info:
-    id: transaction_info
-    description: 交易流水查询，包括交易金额、交易状态、交易时间、交易对手等
-    provider_ids:
-      - api.transaction
-    requires_object: transaction
-    accepts_objects:
-      - bank_account
-
-  transfer_info:
-    id: transfer_info
-    description: 转账记录查询，包括转账金额、转账状态、收款方信息等
-    provider_ids:
-      - api.transfer
-    requires_object: transfer
-    accepts_objects:
-      - bank_account
-
-  account_product_info:
-    id: account_product_info
-    description: 账户产品目录查询，包括账户类型、币种、起存金额、转账限额等
-    provider_ids:
-      - api.account_product_catalog
-
-  service_product_info:
-    id: service_product_info
-    description: 服务产品目录查询，包括服务类型、服务费、服务状态等
-    provider_ids:
-      - api.service_product_catalog
-
-  customer_profile_info:
-    id: customer_profile_info
-    description: 客户档案查询，包括客户基本信息、风险等级、KYC状态等
-    provider_ids:
-      - api.customer_profile
-
-  customer_status_history_info:
-    id: customer_status_history_info
-    description: 客户状态变更历史查询，包括状态变更时间、变更原因等
-    provider_ids:
-      - api.customer_status_history
+  # ======================================================== #
+  #  loans — 信贷接口                                           #
+  # ======================================================== #
 
   credit_application_info:
     id: credit_application_info
@@ -133,11 +146,22 @@ intents:
     provider_ids:
       - api.credit_limit
 
+  loan_info:
+    id: loan_info
+    description: 贷款信息查询，包括贷款产品利率、期限、还款方式，或贷款合同借据详情
+    provider_ids:
+      - api.loan
+    requires_object: loan
+
   loan_application_info:
     id: loan_application_info
     description: 贷款申请详情查询，包括申请信息、审批流程等
     provider_ids:
       - api.loan_application
+
+  # ======================================================== #
+  #  repayments — 还款与逾期接口                                 #
+  # ======================================================== #
 
   repayment_schedule_info:
     id: repayment_schedule_info
@@ -164,11 +188,19 @@ intents:
     provider_ids:
       - api.overdue
 
+  # ======================================================== #
+  #  operations — 运营支撑接口                                   #
+  # ======================================================== #
+
   notification_info:
     id: notification_info
     description: 客户通知查询，包括通知类型、通知内容、发送状态等
     provider_ids:
       - api.notification
+
+  # ======================================================== #
+  #  FAQ / RAG — 通用咨询                                        #
+  # ======================================================== #
 
   interest_rate_policy:
     id: interest_rate_policy
