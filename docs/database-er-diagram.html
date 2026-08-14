@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据库表关系图 - 金融客服系统</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0f1117;
+  --panel: #1a1d29;
+  --border: #2a2d3a;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --accent: #4fc3f7;
+  --header-h: 56px;
+}
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 13px;
+}
+
+/* ── 顶部工具栏 ── */
+.toolbar {
+  position: fixed; top: 0; left: 0; right: 0; height: var(--header-h);
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 20px; z-index: 100;
+}
+.toolbar h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
+.toolbar .search-box {
+  position: relative;
+}
+.toolbar input[type="text"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 12px 6px 32px;
+  font-size: 13px;
+  width: 240px;
+  outline: none;
+}
+.toolbar input[type="text"]:focus { border-color: var(--accent); }
+.toolbar .search-icon {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  color: var(--text-dim); font-size: 14px;
+}
+.toolbar .btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.toolbar .btn:hover { color: var(--accent); border-color: var(--accent); }
+.toolbar .btn.active { color: var(--accent); border-color: var(--accent); background: rgba(79,195,247,0.1); }
+.toolbar .spacer { flex: 1; }
+.toolbar .info { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+
+/* ── 域过滤侧栏 ── */
+.domain-filter {
+  position: fixed; top: var(--header-h); left: 0;
+  width: 180px; bottom: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 12px;
+  overflow-y: auto;
+  z-index: 90;
+}
+.domain-filter h3 { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.domain-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 5px; cursor: pointer;
+  transition: background .12s;
+}
+.domain-item:hover { background: rgba(255,255,255,0.04); }
+.domain-item .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.domain-item .label { font-size: 12px; }
+.domain-item .count { font-size: 11px; color: var(--text-dim); margin-left: auto; }
+.domain-item.disabled { opacity: 0.35; }
+
+/* ── 画布区域 ── */
+.canvas-wrapper {
+  position: fixed;
+  top: var(--header-h); left: 180px; right: 0; bottom: 0;
+  overflow: hidden;
+  cursor: grab;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(79,195,247,0.02) 0%, transparent 60%),
+    var(--bg);
+}
+.canvas-wrapper.panning { cursor: grabbing; }
+.canvas-wrapper::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+#canvas {
+  position: absolute;
+  transform-origin: 0 0;
+  width: 1px; height: 1px;
+}
+
+/* ── SVG 连线层 ── */
+#svg-layer {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.fk-line {
+  fill: none;
+  stroke-width: 1.5;
+  opacity: 0.25;
+  transition: opacity .2s, stroke-width .2s;
+}
+.fk-line.highlight { opacity: 0.9; stroke-width: 2.5; }
+.fk-line.dim { opacity: 0.05; }
+
+/* ── 表卡片 ── */
+.table-card {
+  position: absolute;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 240px;
+  cursor: move;
+  user-select: none;
+  transition: box-shadow .15s, border-color .15s, opacity .2s;
+  z-index: 10;
+}
+.table-card:hover { border-color: rgba(79,195,247,0.4); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+.table-card.dragging { z-index: 999; box-shadow: 0 8px 30px rgba(0,0,0,0.5); cursor: grabbing; }
+.table-card.highlight { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79,195,247,0.3); }
+.table-card.dim { opacity: 0.2; }
+.table-card.hidden { display: none; }
+
+.table-card .card-header {
+  padding: 8px 12px;
+  border-radius: 8px 8px 0 0;
+  font-weight: 600;
+  font-size: 12px;
+  display: flex; align-items: center; gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.table-card .card-header .collapse-btn {
+  margin-left: auto;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1;
+}
+.table-card .card-header .collapse-btn:hover { color: var(--accent); }
+
+.table-card .card-body { padding: 6px 0; }
+.table-card .card-body.collapsed { display: none; }
+
+.table-card .field {
+  padding: 2px 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+  display: flex; align-items: center; gap: 6px;
+}
+.table-card .field.pk { color: #ffb74d; font-weight: 600; }
+.table-card .field.fk { color: var(--accent); }
+.table-card .field .key-icon { font-size: 10px; width: 14px; text-align: center; flex-shrink: 0; }
+.table-card .field .field-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.table-card .field .field-type { font-size: 10px; color: #555; }
+
+.table-card .card-comment {
+  padding: 4px 12px 6px;
+  font-size: 10px;
+  color: #555;
+  border-top: 1px solid var(--border);
+  line-height: 1.4;
+}
+
+/* ── 域颜色 ── */
+.domain-dim       { background: #2d3561; }
+.domain-customer  { background: #1a4a3a; }
+.domain-account   { background: #3d2d1a; }
+.domain-tx        { background: #2a1a3d; }
+.domain-wealth    { background: #1a2d4a; }
+.domain-loan      { background: #4a1a2d; }
+.domain-repay     { background: #3d3d1a; }
+.domain-risk      { background: #4a2d1a; }
+.domain-collect   { background: #2d4a4a; }
+.domain-ops       { background: #2d2d2d; }
+
+.border-dim       { border-top: 3px solid #5b6db8; }
+.border-customer  { border-top: 3px solid #4caf50; }
+.border-account   { border-top: 3px solid #ff9800; }
+.border-tx        { border-top: 3px solid #ab47bc; }
+.border-wealth    { border-top: 3px solid #42a5f5; }
+.border-loan      { border-top: 3px solid #ef5350; }
+.border-repay     { border-top: 3px solid #d4e157; }
+.border-risk      { border-top: 3px solid #ff7043; }
+.border-collect   { border-top: 3px solid #26a69a; }
+.border-ops       { border-top: 3px solid #78909c; }
+
+.color-dim       { color: #5b6db8; }
+.color-customer  { color: #4caf50; }
+.color-account   { color: #ff9800; }
+.color-tx        { color: #ab47bc; }
+.color-wealth    { color: #42a5f5; }
+.color-loan      { color: #ef5350; }
+.color-repay     { color: #d4e157; }
+.color-risk      { color: #ff7043; }
+.color-collect   { color: #26a69a; }
+.color-ops       { color: #78909c; }
+
+/* ── 缩放指示 ── */
+.zoom-indicator {
+  position: fixed; bottom: 16px; right: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px; color: var(--text-dim);
+  z-index: 80;
+}
+
+/* ── 加载提示 ── */
+.loading {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  color: var(--text-dim); font-size: 16px;
+}
+</style>
+</head>
+<body>
+
+<!-- ── 顶部工具栏 ── -->
+<div class="toolbar">
+  <h1>金融客服系统 - 数据库表关系图</h1>
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="search" placeholder="搜索表名或注释..." />
+  </div>
+  <button class="btn active" id="btn-lines">显示连线</button>
+  <button class="btn" id="btn-collapse">全部折叠</button>
+  <button class="btn" id="btn-expand">全部展开</button>
+  <button class="btn" id="btn-fit">缩放至适应</button>
+  <button class="btn" id="btn-reset">重置布局</button>
+  <div class="spacer"></div>
+  <div class="info" id="info">共 0 张表</div>
+</div>
+
+<!-- ── 域过滤侧栏 ── -->
+<div class="domain-filter" id="domain-filter">
+  <h3>业务域</h3>
+</div>
+
+<!-- ── 画布 ── -->
+<div class="canvas-wrapper" id="wrapper">
+  <div id="canvas">
+    <svg id="svg-layer"></svg>
+  </div>
+</div>
+
+<div class="zoom-indicator" id="zoom-indicator">100%</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// 数据库表定义（92 张表）
+// ══════════════════════════════════════════════════════════════════
+const TABLES = [
+  // ── 维表 ──
+  {name:'dim_branch',domain:'dim',comment:'银行机构维表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'parent_id',t:'BIGINT',fk:'dim_branch.id'},{n:'branch_code',t:'VARCHAR'},{n:'branch_name',t:'VARCHAR'},{n:'branch_level',t:'VARCHAR'},{n:'province',t:'VARCHAR'},{n:'branch_status',t:'VARCHAR'}
+  ]},
+  {name:'dim_channel',domain:'dim',comment:'业务渠道维表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'channel_code',t:'VARCHAR'},{n:'channel_name',t:'VARCHAR'},{n:'channel_type',t:'VARCHAR'},{n:'channel_status',t:'VARCHAR'}
+  ]},
+  {name:'dim_currency',domain:'dim',comment:'币种维表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'currency_code',t:'VARCHAR',pk2:true},{n:'currency_name',t:'VARCHAR'},{n:'symbol',t:'VARCHAR'},{n:'precision_scale',t:'INT'}
+  ]},
+  {name:'dim_risk_level',domain:'dim',comment:'风险等级维表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'risk_level_code',t:'VARCHAR'},{n:'risk_level_name',t:'VARCHAR'},{n:'risk_level_type',t:'VARCHAR'},{n:'risk_score_min',t:'INT'},{n:'risk_score_max',t:'INT'}
+  ]},
+  {name:'dim_employee',domain:'dim',comment:'员工主数据维表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'employee_no',t:'VARCHAR'},{n:'employee_name',t:'VARCHAR'},{n:'branch_id',t:'BIGINT',fk:'dim_branch.id'},{n:'employee_role',t:'VARCHAR'},{n:'employee_status',t:'VARCHAR'}
+  ]},
+  {name:'dim_product_category',domain:'dim',comment:'产品分类维表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'parent_id',t:'BIGINT',fk:'dim_product_category.id'},{n:'category_code',t:'VARCHAR'},{n:'category_name',t:'VARCHAR'},{n:'category_type',t:'VARCHAR'}
+  ]},
+  {name:'customer_tag',domain:'dim',comment:'客户标签表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'tag_code',t:'VARCHAR'},{n:'tag_name',t:'VARCHAR'},{n:'tag_type',t:'VARCHAR'}
+  ]},
+  {name:'business_metric_dict',domain:'dim',comment:'业务指标字典表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'metric_code',t:'VARCHAR'},{n:'metric_name',t:'VARCHAR'},{n:'stat_domain',t:'VARCHAR'},{n:'metric_type',t:'VARCHAR'}
+  ]},
+
+  // ── 客户域 ──
+  {name:'customer',domain:'customer',comment:'客户主表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'customer_no',t:'VARCHAR'},{n:'customer_type',t:'VARCHAR'},{n:'customer_name',t:'VARCHAR'},{n:'branch_id',t:'BIGINT',fk:'dim_branch.id'},{n:'register_channel_id',t:'BIGINT',fk:'dim_channel.id'},{n:'risk_level_id',t:'BIGINT',fk:'dim_risk_level.id'},{n:'customer_status',t:'VARCHAR'}
+  ]},
+  {name:'customer_status_history',domain:'customer',comment:'客户状态历史表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'change_seq',t:'INT'},{n:'from_status',t:'VARCHAR'},{n:'to_status',t:'VARCHAR'},{n:'operator_id',t:'BIGINT',fk:'dim_employee.id'}
+  ]},
+  {name:'customer_identity',domain:'customer',comment:'客户实名信息表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'identity_type',t:'VARCHAR'},{n:'identity_no',t:'VARCHAR'},{n:'legal_name',t:'VARCHAR'},{n:'verification_status',t:'VARCHAR'}
+  ]},
+  {name:'customer_contact',domain:'customer',comment:'客户联系方式表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'contact_type',t:'VARCHAR'},{n:'contact_value',t:'VARCHAR'},{n:'is_primary',t:'VARCHAR'}
+  ]},
+  {name:'customer_device',domain:'customer',comment:'客户设备表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'device_no',t:'VARCHAR'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'device_fingerprint',t:'VARCHAR'},{n:'device_type',t:'VARCHAR'},{n:'risk_status',t:'VARCHAR'}
+  ]},
+  {name:'customer_kyc',domain:'customer',comment:'客户KYC表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'occupation',t:'VARCHAR'},{n:'annual_income_amount',t:'DECIMAL'},{n:'income_currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'kyc_status',t:'VARCHAR'},{n:'compliance_status',t:'VARCHAR'}
+  ]},
+  {name:'enterprise_profile',domain:'customer',comment:'企业客户档案表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'company_name',t:'VARCHAR'},{n:'uniform_social_credit_code',t:'VARCHAR'},{n:'registered_capital_currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'business_status',t:'VARCHAR'}
+  ]},
+  {name:'beneficial_owner',domain:'customer',comment:'受益所有人表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'owner_type',t:'VARCHAR'},{n:'owner_name',t:'VARCHAR'},{n:'identity_no',t:'VARCHAR'},{n:'ownership_ratio',t:'DECIMAL'}
+  ]},
+  {name:'customer_risk_assessment',domain:'customer',comment:'客户风险测评表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'assessment_no',t:'VARCHAR'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'risk_level_id',t:'BIGINT',fk:'dim_risk_level.id'},{n:'assessment_score',t:'INT'},{n:'operator_id',t:'BIGINT',fk:'dim_employee.id'},{n:'assessment_status',t:'VARCHAR'}
+  ]},
+  {name:'customer_tag_rel',domain:'customer',comment:'客户标签关系表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'tag_id',t:'BIGINT',fk:'customer_tag.id'},{n:'source_type',t:'VARCHAR'},{n:'effective_from',t:'DATE'}
+  ]},
+
+  // ── 账户域 ──
+  {name:'account_product',domain:'account',comment:'账户产品表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'product_code',t:'VARCHAR'},{n:'product_name',t:'VARCHAR'},{n:'category_id',t:'BIGINT',fk:'dim_product_category.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'account_type',t:'VARCHAR'},{n:'product_status',t:'VARCHAR'}
+  ]},
+  {name:'service_product',domain:'account',comment:'服务产品表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'service_code',t:'VARCHAR'},{n:'service_name',t:'VARCHAR'},{n:'category_id',t:'BIGINT',fk:'dim_product_category.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'service_type',t:'VARCHAR'},{n:'service_status',t:'VARCHAR'}
+  ]},
+  {name:'bank_account',domain:'account',comment:'银行账户表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'account_no',t:'VARCHAR'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'branch_id',t:'BIGINT',fk:'dim_branch.id'},{n:'open_channel_id',t:'BIGINT',fk:'dim_channel.id'},{n:'account_product_id',t:'BIGINT',fk:'account_product.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'balance_amount',t:'DECIMAL'},{n:'account_status',t:'VARCHAR'}
+  ]},
+  {name:'bank_account_status_history',domain:'account',comment:'账户状态历史表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'account_id',t:'BIGINT',fk:'bank_account.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'change_seq',t:'INT'},{n:'to_status',t:'VARCHAR'},{n:'operator_id',t:'BIGINT',fk:'dim_employee.id'}
+  ]},
+  {name:'bank_card',domain:'account',comment:'银行卡表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'card_no',t:'VARCHAR'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'account_id',t:'BIGINT',fk:'bank_account.id'},{n:'card_type',t:'VARCHAR'},{n:'card_status',t:'VARCHAR'}
+  ]},
+
+  // ── 交易域 ──
+  {name:'account_transaction',domain:'tx',comment:'账户交易表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'transaction_no',t:'VARCHAR'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'from_account_id',t:'BIGINT',fk:'bank_account.id'},{n:'to_account_id',t:'BIGINT',fk:'bank_account.id'},{n:'card_id',t:'BIGINT',fk:'bank_card.id'},{n:'channel_id',t:'BIGINT',fk:'dim_channel.id'},{n:'original_transaction_id',t:'BIGINT',fk:'account_transaction.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'transaction_amount',t:'DECIMAL'},{n:'transaction_status',t:'VARCHAR'}
+  ]},
+  {name:'channel_transaction',domain:'tx',comment:'渠道流水表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'channel_id',t:'BIGINT',fk:'dim_channel.id'},{n:'transaction_id',t:'BIGINT',fk:'account_transaction.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'external_order_no',t:'VARCHAR'},{n:'reconcile_status',t:'VARCHAR'}
+  ]},
+  {name:'reconciliation_batch',domain:'tx',comment:'对账批次表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'channel_id',t:'BIGINT',fk:'dim_channel.id'},{n:'batch_status',t:'VARCHAR'},{n:'reconcile_date',t:'DATE'}
+  ]},
+  {name:'reconciliation_result',domain:'tx',comment:'对账结果表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'batch_id',t:'BIGINT',fk:'reconciliation_batch.id'},{n:'transaction_id',t:'BIGINT',fk:'account_transaction.id'},{n:'channel_transaction_id',t:'BIGINT',fk:'channel_transaction.id'},{n:'result_status',t:'VARCHAR'}
+  ]},
+  {name:'reconciliation_adjustment',domain:'tx',comment:'对账调账表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'result_id',t:'BIGINT',fk:'reconciliation_result.id'},{n:'transaction_id',t:'BIGINT',fk:'account_transaction.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'approved_by',t:'BIGINT',fk:'dim_employee.id'},{n:'adjustment_status',t:'VARCHAR'}
+  ]},
+  {name:'fund_freeze',domain:'tx',comment:'资金冻结表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'account_id',t:'BIGINT',fk:'bank_account.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'frozen_amount',t:'DECIMAL'},{n:'freeze_status',t:'VARCHAR'}
+  ]},
+  {name:'fund_freeze_operation',domain:'tx',comment:'资金冻结操作明细表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'freeze_id',t:'BIGINT',fk:'fund_freeze.id'},{n:'account_id',t:'BIGINT',fk:'bank_account.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'transaction_id',t:'BIGINT',fk:'account_transaction.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'operator_id',t:'BIGINT',fk:'dim_employee.id'},{n:'operation_type',t:'VARCHAR'}
+  ]},
+  {name:'account_ledger',domain:'tx',comment:'账户流水表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'account_id',t:'BIGINT',fk:'bank_account.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'transaction_id',t:'BIGINT',fk:'account_transaction.id'},{n:'freeze_id',t:'BIGINT',fk:'fund_freeze.id'},{n:'freeze_operation_id',t:'BIGINT',fk:'fund_freeze_operation.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'balance_after',t:'DECIMAL'}
+  ]},
+
+  // ── 理财域 ──
+  {name:'wealth_product',domain:'wealth',comment:'理财产品表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'product_code',t:'VARCHAR'},{n:'product_name',t:'VARCHAR'},{n:'category_id',t:'BIGINT',fk:'dim_product_category.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'risk_level_id',t:'BIGINT',fk:'dim_risk_level.id'},{n:'product_type',t:'VARCHAR'},{n:'product_status',t:'VARCHAR'}
+  ]},
+  {name:'wealth_open_period',domain:'wealth',comment:'理财开放期表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'product_id',t:'BIGINT',fk:'wealth_product.id'},{n:'period_no',t:'INT'},{n:'purchase_start_at',t:'DATETIME'},{n:'period_status',t:'VARCHAR'}
+  ]},
+  {name:'wealth_trade_calendar',domain:'wealth',comment:'理财交易日历表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'product_id',t:'BIGINT',fk:'wealth_product.id'},{n:'calendar_date',t:'DATE'},{n:'trade_flag',t:'TINYINT'}
+  ]},
+  {name:'wealth_settlement_rule',domain:'wealth',comment:'理财清算规则表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'product_id',t:'BIGINT',fk:'wealth_product.id'},{n:'purchase_confirm_days',t:'INT'},{n:'redeem_confirm_days',t:'INT'},{n:'rule_status',t:'VARCHAR'}
+  ]},
+  {name:'wealth_nav',domain:'wealth',comment:'理财产品净值表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'product_id',t:'BIGINT',fk:'wealth_product.id'},{n:'nav_date',t:'DATE'},{n:'unit_nav',t:'DECIMAL'},{n:'accumulated_nav',t:'DECIMAL'}
+  ]},
+  {name:'wealth_position',domain:'wealth',comment:'理财持仓表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'account_id',t:'BIGINT',fk:'bank_account.id'},{n:'product_id',t:'BIGINT',fk:'wealth_product.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'holding_share',t:'DECIMAL'},{n:'position_status',t:'VARCHAR'}
+  ]},
+  {name:'wealth_order',domain:'wealth',comment:'理财订单表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'order_no',t:'VARCHAR'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'account_id',t:'BIGINT',fk:'bank_account.id'},{n:'product_id',t:'BIGINT',fk:'wealth_product.id'},{n:'channel_id',t:'BIGINT',fk:'dim_channel.id'},{n:'risk_assessment_id',t:'BIGINT',fk:'customer_risk_assessment.id'},{n:'original_order_id',t:'BIGINT',fk:'wealth_order.id'},{n:'transaction_id',t:'BIGINT',fk:'account_transaction.id'},{n:'freeze_id',t:'BIGINT',fk:'fund_freeze.id'},{n:'position_id',t:'BIGINT',fk:'wealth_position.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'order_status',t:'VARCHAR'}
+  ]},
+  {name:'wealth_income',domain:'wealth',comment:'理财收益表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'income_no',t:'VARCHAR'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'account_id',t:'BIGINT',fk:'bank_account.id'},{n:'position_id',t:'BIGINT',fk:'wealth_position.id'},{n:'product_id',t:'BIGINT',fk:'wealth_product.id'},{n:'transaction_id',t:'BIGINT',fk:'account_transaction.id'},{n:'ledger_id',t:'BIGINT',fk:'account_ledger.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'income_amount',t:'DECIMAL'}
+  ]},
+  {name:'wealth_product_notice',domain:'wealth',comment:'理财产品公告表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'notice_no',t:'VARCHAR'},{n:'product_id',t:'BIGINT',fk:'wealth_product.id'},{n:'notice_type',t:'VARCHAR'},{n:'notice_title',t:'VARCHAR'},{n:'notice_status',t:'VARCHAR'}
+  ]},
+
+  // ── 信贷域 ──
+  {name:'loan_product',domain:'loan',comment:'贷款产品表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'product_code',t:'VARCHAR'},{n:'product_name',t:'VARCHAR'},{n:'category_id',t:'BIGINT',fk:'dim_product_category.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'risk_level_id',t:'BIGINT',fk:'dim_risk_level.id'},{n:'loan_type',t:'VARCHAR'},{n:'annual_interest_rate',t:'DECIMAL'},{n:'repayment_method',t:'VARCHAR'},{n:'product_status',t:'VARCHAR'}
+  ]},
+  {name:'loan_product_eligibility_rule',domain:'loan',comment:'贷款产品准入规则表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'product_id',t:'BIGINT',fk:'loan_product.id'},{n:'rule_code',t:'VARCHAR'},{n:'rule_type',t:'VARCHAR'},{n:'decision_action',t:'VARCHAR'}
+  ]},
+  {name:'loan_product_rate_tier',domain:'loan',comment:'贷款产品利率档位表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'product_id',t:'BIGINT',fk:'loan_product.id'},{n:'tier_code',t:'VARCHAR'},{n:'score_min',t:'INT'},{n:'annual_interest_rate',t:'DECIMAL'}
+  ]},
+  {name:'loan_product_required_material',domain:'loan',comment:'贷款产品必需材料表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'product_id',t:'BIGINT',fk:'loan_product.id'},{n:'material_type',t:'VARCHAR'},{n:'required_stage',t:'VARCHAR'},{n:'required_flag',t:'TINYINT'}
+  ]},
+  {name:'credit_application',domain:'loan',comment:'授信申请表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'credit_application_no',t:'VARCHAR'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'product_id',t:'BIGINT',fk:'loan_product.id'},{n:'channel_id',t:'BIGINT',fk:'dim_channel.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'apply_limit_amount',t:'DECIMAL'},{n:'application_status',t:'VARCHAR'}
+  ]},
+  {name:'credit_application_material',domain:'loan',comment:'授信申请材料表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'material_no',t:'VARCHAR'},{n:'credit_application_id',t:'BIGINT',fk:'credit_application.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'material_type',t:'VARCHAR'},{n:'verified_by',t:'BIGINT',fk:'dim_employee.id'}
+  ]},
+  {name:'credit_approval_record',domain:'loan',comment:'授信审批记录表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'credit_application_id',t:'BIGINT',fk:'credit_application.id'},{n:'approver_id',t:'BIGINT',fk:'dim_employee.id'},{n:'approval_node',t:'VARCHAR'},{n:'approval_result',t:'VARCHAR'},{n:'approved_limit_amount',t:'DECIMAL'}
+  ]},
+  {name:'credit_limit',domain:'loan',comment:'授信额度表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'limit_no',t:'VARCHAR'},{n:'credit_application_id',t:'BIGINT',fk:'credit_application.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'product_id',t:'BIGINT',fk:'loan_product.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'total_limit_amount',t:'DECIMAL'},{n:'available_limit_amount',t:'DECIMAL'},{n:'limit_status',t:'VARCHAR'}
+  ]},
+  {name:'loan_application',domain:'loan',comment:'贷款申请表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'application_no',t:'VARCHAR'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'product_id',t:'BIGINT',fk:'loan_product.id'},{n:'credit_limit_id',t:'BIGINT',fk:'credit_limit.id'},{n:'channel_id',t:'BIGINT',fk:'dim_channel.id'},{n:'apply_amount',t:'DECIMAL'},{n:'application_status',t:'VARCHAR'}
+  ]},
+  {name:'loan_application_material',domain:'loan',comment:'贷款申请材料表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'material_no',t:'VARCHAR'},{n:'application_id',t:'BIGINT',fk:'loan_application.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'material_type',t:'VARCHAR'},{n:'verified_by',t:'BIGINT',fk:'dim_employee.id'}
+  ]},
+  {name:'credit_assessment',domain:'loan',comment:'征信评估表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'assessment_no',t:'VARCHAR'},{n:'credit_application_id',t:'BIGINT',fk:'credit_application.id'},{n:'application_id',t:'BIGINT',fk:'loan_application.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'risk_level_id',t:'BIGINT',fk:'dim_risk_level.id'},{n:'credit_score',t:'INT'},{n:'assessment_result',t:'VARCHAR'}
+  ]},
+  {name:'loan_approval_record',domain:'loan',comment:'贷款审批记录表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'application_id',t:'BIGINT',fk:'loan_application.id'},{n:'approver_id',t:'BIGINT',fk:'dim_employee.id'},{n:'approval_node',t:'VARCHAR'},{n:'approval_result',t:'VARCHAR'},{n:'approved_amount',t:'DECIMAL'}
+  ]},
+  {name:'loan_contract',domain:'loan',comment:'贷款合同借据表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'contract_no',t:'VARCHAR'},{n:'loan_no',t:'VARCHAR'},{n:'application_id',t:'BIGINT',fk:'loan_application.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'product_id',t:'BIGINT',fk:'loan_product.id'},{n:'repayment_account_id',t:'BIGINT',fk:'bank_account.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'principal_amount',t:'DECIMAL'},{n:'contract_status',t:'VARCHAR'}
+  ]},
+  {name:'loan_contract_document',domain:'loan',comment:'贷款合同文件表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'document_no',t:'VARCHAR'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'document_type',t:'VARCHAR'},{n:'sign_status',t:'VARCHAR'}
+  ]},
+  {name:'contract_sign_record',domain:'loan',comment:'合同签署记录表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'sign_no',t:'VARCHAR'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'document_id',t:'BIGINT',fk:'loan_contract_document.id'},{n:'sign_channel_id',t:'BIGINT',fk:'dim_channel.id'},{n:'sign_status',t:'VARCHAR'}
+  ]},
+  {name:'collateral_asset',domain:'loan',comment:'抵押质押资产表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'collateral_no',t:'VARCHAR'},{n:'application_id',t:'BIGINT',fk:'loan_application.id'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'asset_type',t:'VARCHAR'},{n:'appraised_value_amount',t:'DECIMAL'},{n:'collateral_status',t:'VARCHAR'}
+  ]},
+  {name:'guarantee_record',domain:'loan',comment:'担保记录表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'guarantee_no',t:'VARCHAR'},{n:'application_id',t:'BIGINT',fk:'loan_application.id'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'guarantor_customer_id',t:'BIGINT',fk:'customer.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'guarantee_type',t:'VARCHAR'},{n:'guarantee_status',t:'VARCHAR'}
+  ]},
+  {name:'loan_disbursement',domain:'loan',comment:'放款记录表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'disbursement_no',t:'VARCHAR'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'account_id',t:'BIGINT',fk:'bank_account.id'},{n:'transaction_id',t:'BIGINT',fk:'account_transaction.id'},{n:'original_disbursement_id',t:'BIGINT',fk:'loan_disbursement.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'disbursement_amount',t:'DECIMAL'},{n:'disbursement_status',t:'VARCHAR'}
+  ]},
+  {name:'credit_limit_change_log',domain:'loan',comment:'授信额度变更流水表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'change_no',t:'VARCHAR'},{n:'credit_limit_id',t:'BIGINT',fk:'credit_limit.id'},{n:'credit_application_id',t:'BIGINT',fk:'credit_application.id'},{n:'loan_application_id',t:'BIGINT',fk:'loan_application.id'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'repayment_id',t:'BIGINT',fk:'repayment_record.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'change_type',t:'VARCHAR'},{n:'change_amount',t:'DECIMAL'}
+  ]},
+
+  // ── 还款域 ──
+  {name:'repayment_schedule',domain:'repay',comment:'还款计划表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'schedule_version',t:'INT'},{n:'period_no',t:'INT'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'total_amount',t:'DECIMAL'},{n:'schedule_status',t:'VARCHAR'}
+  ]},
+  {name:'repayment_bill',domain:'repay',comment:'还款账单表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'bill_no',t:'VARCHAR'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'schedule_id',t:'BIGINT',fk:'repayment_schedule.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'outstanding_amount',t:'DECIMAL'},{n:'bill_status',t:'VARCHAR'}
+  ]},
+  {name:'repayment_authorization',domain:'repay',comment:'还款授权表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'authorization_no',t:'VARCHAR'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'account_id',t:'BIGINT',fk:'bank_account.id'},{n:'authorization_type',t:'VARCHAR'},{n:'authorization_status',t:'VARCHAR'}
+  ]},
+  {name:'repayment_record',domain:'repay',comment:'还款记录表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'repayment_no',t:'VARCHAR'},{n:'bill_id',t:'BIGINT',fk:'repayment_bill.id'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'account_id',t:'BIGINT',fk:'bank_account.id'},{n:'transaction_id',t:'BIGINT',fk:'account_transaction.id'},{n:'authorization_id',t:'BIGINT',fk:'repayment_authorization.id'},{n:'collection_case_id',t:'BIGINT',fk:'collection_case.id'},{n:'repayment_promise_id',t:'BIGINT',fk:'repayment_promise.id'},{n:'original_repayment_id',t:'BIGINT',fk:'repayment_record.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'repayment_amount',t:'DECIMAL'},{n:'repayment_status',t:'VARCHAR'}
+  ]},
+  {name:'repayment_allocation',domain:'repay',comment:'还款分配明细表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'allocation_no',t:'VARCHAR'},{n:'repayment_id',t:'BIGINT',fk:'repayment_record.id'},{n:'bill_id',t:'BIGINT',fk:'repayment_bill.id'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'allocated_amount',t:'DECIMAL'}
+  ]},
+  {name:'fee_reduction',domain:'repay',comment:'费用减免表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'reduction_no',t:'VARCHAR'},{n:'bill_id',t:'BIGINT',fk:'repayment_bill.id'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'approved_by',t:'BIGINT',fk:'dim_employee.id'},{n:'reduction_status',t:'VARCHAR'}
+  ]},
+  {name:'overdue_record',domain:'repay',comment:'逾期记录表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'overdue_no',t:'VARCHAR'},{n:'bill_id',t:'BIGINT',fk:'repayment_bill.id'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'overdue_days',t:'INT'},{n:'overdue_total_amount',t:'DECIMAL'},{n:'overdue_status',t:'VARCHAR'}
+  ]},
+
+  // ── 风控域 ──
+  {name:'risk_strategy',domain:'risk',comment:'风控策略表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'strategy_code',t:'VARCHAR'},{n:'strategy_name',t:'VARCHAR'},{n:'risk_level_id',t:'BIGINT',fk:'dim_risk_level.id'},{n:'created_by',t:'BIGINT',fk:'dim_employee.id'},{n:'strategy_status',t:'VARCHAR'}
+  ]},
+  {name:'risk_rule',domain:'risk',comment:'风控规则表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'rule_code',t:'VARCHAR'},{n:'rule_name',t:'VARCHAR'},{n:'risk_level_id',t:'BIGINT',fk:'dim_risk_level.id'},{n:'rule_type',t:'VARCHAR'},{n:'decision_action',t:'VARCHAR'},{n:'rule_status',t:'VARCHAR'}
+  ]},
+  {name:'risk_strategy_rule_rel',domain:'risk',comment:'风控策略规则关系表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'strategy_id',t:'BIGINT',fk:'risk_strategy.id'},{n:'rule_id',t:'BIGINT',fk:'risk_rule.id'},{n:'execute_order',t:'INT'},{n:'rule_weight',t:'DECIMAL'}
+  ]},
+  {name:'risk_event',domain:'risk',comment:'风险事件表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'event_no',t:'VARCHAR'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'strategy_id',t:'BIGINT',fk:'risk_strategy.id'},{n:'risk_level_id',t:'BIGINT',fk:'dim_risk_level.id'},{n:'decision_action',t:'VARCHAR'},{n:'event_status',t:'VARCHAR'}
+  ]},
+  {name:'risk_hit_record',domain:'risk',comment:'风险命中记录表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'event_id',t:'BIGINT',fk:'risk_event.id'},{n:'rule_id',t:'BIGINT',fk:'risk_rule.id'},{n:'hit_score',t:'INT'},{n:'decision_action',t:'VARCHAR'}
+  ]},
+  {name:'blacklist_record',domain:'risk',comment:'黑名单记录表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'blacklist_no',t:'VARCHAR'},{n:'subject_type',t:'VARCHAR'},{n:'subject_value',t:'VARCHAR'},{n:'risk_level_id',t:'BIGINT',fk:'dim_risk_level.id'},{n:'removed_by',t:'BIGINT',fk:'dim_employee.id'},{n:'blacklist_status',t:'VARCHAR'}
+  ]},
+  {name:'aml_case',domain:'risk',comment:'反洗钱案件表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'case_no',t:'VARCHAR'},{n:'risk_event_id',t:'BIGINT',fk:'risk_event.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'primary_transaction_id',t:'BIGINT',fk:'account_transaction.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'risk_level_id',t:'BIGINT',fk:'dim_risk_level.id'},{n:'case_status',t:'VARCHAR'}
+  ]},
+  {name:'aml_case_transaction',domain:'risk',comment:'反洗钱案件交易明细表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'aml_case_id',t:'BIGINT',fk:'aml_case.id'},{n:'transaction_id',t:'BIGINT',fk:'account_transaction.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'transaction_amount',t:'DECIMAL'}
+  ]},
+  {name:'suspicious_transaction_report',domain:'risk',comment:'可疑交易报告表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'report_no',t:'VARCHAR'},{n:'aml_case_id',t:'BIGINT',fk:'aml_case.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'report_type',t:'VARCHAR'},{n:'report_status',t:'VARCHAR'}
+  ]},
+  {name:'aml_review_result',domain:'risk',comment:'反洗钱复核结果表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'review_no',t:'VARCHAR'},{n:'aml_case_id',t:'BIGINT',fk:'aml_case.id'},{n:'risk_event_id',t:'BIGINT',fk:'risk_event.id'},{n:'reviewer_id',t:'BIGINT',fk:'dim_employee.id'},{n:'review_result',t:'VARCHAR'}
+  ]},
+  {name:'manual_review_task',domain:'risk',comment:'人工复核任务表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'task_no',t:'VARCHAR'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'risk_event_id',t:'BIGINT',fk:'risk_event.id'},{n:'assignee_id',t:'BIGINT',fk:'dim_employee.id'},{n:'task_type',t:'VARCHAR'},{n:'task_status',t:'VARCHAR'}
+  ]},
+
+  // ── 催收域 ──
+  {name:'collection_case',domain:'collect',comment:'催收案件表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'case_no',t:'VARCHAR'},{n:'overdue_id',t:'BIGINT',fk:'overdue_record.id'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'collector_id',t:'BIGINT',fk:'dim_employee.id'},{n:'collection_stage',t:'VARCHAR'},{n:'case_status',t:'VARCHAR'}
+  ]},
+  {name:'collection_action',domain:'collect',comment:'催收处置动作表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'action_no',t:'VARCHAR'},{n:'case_id',t:'BIGINT',fk:'collection_case.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'operator_id',t:'BIGINT',fk:'dim_employee.id'},{n:'action_type',t:'VARCHAR'},{n:'action_status',t:'VARCHAR'}
+  ]},
+  {name:'collection_contact_record',domain:'collect',comment:'催收联系记录表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'case_id',t:'BIGINT',fk:'collection_case.id'},{n:'collector_id',t:'BIGINT',fk:'dim_employee.id'},{n:'assistant_collector_id',t:'BIGINT',fk:'dim_employee.id'},{n:'contact_method',t:'VARCHAR'},{n:'contact_result',t:'VARCHAR'}
+  ]},
+  {name:'repayment_promise',domain:'collect',comment:'承诺还款表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'promise_no',t:'VARCHAR'},{n:'case_id',t:'BIGINT',fk:'collection_case.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'fulfilled_repayment_id',t:'BIGINT',fk:'repayment_record.id'},{n:'promise_status',t:'VARCHAR'}
+  ]},
+  {name:'legal_case',domain:'collect',comment:'法诉案件表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'legal_case_no',t:'VARCHAR'},{n:'action_id',t:'BIGINT',fk:'collection_action.id'},{n:'case_id',t:'BIGINT',fk:'collection_case.id'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'legal_status',t:'VARCHAR'}
+  ]},
+  {name:'loan_write_off',domain:'collect',comment:'贷款核销表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'write_off_no',t:'VARCHAR'},{n:'action_id',t:'BIGINT',fk:'collection_action.id'},{n:'case_id',t:'BIGINT',fk:'collection_case.id'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'approved_by',t:'BIGINT',fk:'dim_employee.id'},{n:'write_off_status',t:'VARCHAR'}
+  ]},
+  {name:'loan_restructure',domain:'collect',comment:'贷款重组表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'restructure_no',t:'VARCHAR'},{n:'action_id',t:'BIGINT',fk:'collection_action.id'},{n:'case_id',t:'BIGINT',fk:'collection_case.id'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'approved_by',t:'BIGINT',fk:'dim_employee.id'},{n:'restructure_status',t:'VARCHAR'}
+  ]},
+  {name:'collateral_disposal',domain:'collect',comment:'抵押质押资产处置表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'disposal_no',t:'VARCHAR'},{n:'action_id',t:'BIGINT',fk:'collection_action.id'},{n:'case_id',t:'BIGINT',fk:'collection_case.id'},{n:'collateral_id',t:'BIGINT',fk:'collateral_asset.id'},{n:'contract_id',t:'BIGINT',fk:'loan_contract.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'repayment_id',t:'BIGINT',fk:'repayment_record.id'},{n:'transaction_id',t:'BIGINT',fk:'account_transaction.id'},{n:'ledger_id',t:'BIGINT',fk:'account_ledger.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'disposal_status',t:'VARCHAR'}
+  ]},
+  {name:'collection_performance_daily',domain:'collect',comment:'催收绩效日表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'stat_date',t:'DATE'},{n:'collector_id',t:'BIGINT',fk:'dim_employee.id'},{n:'branch_id',t:'BIGINT',fk:'dim_branch.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'recovered_amount',t:'DECIMAL'},{n:'recovery_rate',t:'DECIMAL'}
+  ]},
+
+  // ── 运营域 ──
+  {name:'workflow_instance',domain:'ops',comment:'流程实例表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'instance_no',t:'VARCHAR'},{n:'workflow_type',t:'VARCHAR'},{n:'instance_status',t:'VARCHAR'}
+  ]},
+  {name:'workflow_task',domain:'ops',comment:'流程任务表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'task_no',t:'VARCHAR'},{n:'instance_id',t:'BIGINT',fk:'workflow_instance.id'},{n:'assignee_id',t:'BIGINT',fk:'dim_employee.id'},{n:'task_status',t:'VARCHAR'}
+  ]},
+  {name:'notification_message',domain:'ops',comment:'通知消息表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'message_no',t:'VARCHAR'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'channel_txn_id',t:'BIGINT',fk:'channel_transaction.id'},{n:'message_type',t:'VARCHAR'},{n:'send_status',t:'VARCHAR'},{n:'read_status',t:'VARCHAR'}
+  ]},
+  {name:'support_ticket',domain:'ops',comment:'客服工单表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'ticket_no',t:'VARCHAR'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'channel_id',t:'BIGINT',fk:'dim_channel.id'},{n:'assignee_id',t:'BIGINT',fk:'dim_employee.id'},{n:'ticket_type',t:'VARCHAR'},{n:'ticket_status',t:'VARCHAR'}
+  ]},
+  {name:'support_ticket_feedback',domain:'ops',comment:'客服工单反馈表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'feedback_no',t:'VARCHAR'},{n:'ticket_id',t:'BIGINT',fk:'support_ticket.id'},{n:'customer_id',t:'BIGINT',fk:'customer.id'},{n:'satisfaction_score',t:'INT'},{n:'feedback_content',t:'TEXT'}
+  ]},
+  {name:'business_stat_daily',domain:'ops',comment:'业务日统计表',fields:[
+    {n:'id',t:'BIGINT',pk:true},{n:'stat_date',t:'DATE'},{n:'branch_id',t:'BIGINT',fk:'dim_branch.id'},{n:'channel_id',t:'BIGINT',fk:'dim_channel.id'},{n:'currency_code',t:'VARCHAR',fk:'dim_currency.currency_code'},{n:'metric_id',t:'BIGINT',fk:'business_metric_dict.id'},{n:'metric_value',t:'DECIMAL'}
+  ]},
+];
+
+// ══════════════════════════════════════════════════════════════════
+// 域配置
+// ══════════════════════════════════════════════════════════════════
+const DOMAIN_CONFIG = {
+  dim:      { label: '维表',     color: '#5b6db8' },
+  customer: { label: '客户域',   color: '#4caf50' },
+  account:  { label: '账户域',   color: '#ff9800' },
+  tx:       { label: '交易域',   color: '#ab47bc' },
+  wealth:   { label: '理财域',   color: '#42a5f5' },
+  loan:     { label: '信贷域',   color: '#ef5350' },
+  repay:    { label: '还款域',   color: '#d4e157' },
+  risk:     { label: '风控域',   color: '#ff7043' },
+  collect:  { label: '催收域',   color: '#26a69a' },
+  ops:      { label: '运营域',   color: '#78909c' },
+};
+
+// ══════════════════════════════════════════════════════════════════
+// 状态
+// ══════════════════════════════════════════════════════════════════
+let tableMap = {};       // name -> table data
+let cardElements = {};   // name -> DOM element
+let positions = {};      // name -> {x, y}
+let scale = 1;
+let panX = 0, panY = 0;
+let showLines = true;
+let activeDomains = new Set(Object.keys(DOMAIN_CONFIG));
+let allCollapsed = false;
+
+// ══════════════════════════════════════════════════════════════════
+// 初始化
+// ══════════════════════════════════════════════════════════════════
+function init() {
+  // 构建 tableMap
+  TABLES.forEach(t => { tableMap[t.name] = t; });
+
+  // 初始布局：按域分组，网格排列
+  layoutByDomain();
+
+  // 渲染域过滤侧栏
+  renderDomainFilter();
+
+  // 渲染表卡片
+  renderCards();
+
+  // 渲染连线
+  renderLines();
+
+  // 绑定事件
+  bindEvents();
+
+  // 更新信息
+  document.getElementById('info').textContent = `共 ${TABLES.length} 张表`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 按域分组布局
+// ══════════════════════════════════════════════════════════════════
+function layoutByDomain() {
+  const domainOrder = ['dim','customer','account','tx','wealth','loan','repay','risk','collect','ops'];
+  const colSpacing = 300;
+  const rowSpacing = 180;
+  const tablesPerRow = 4;
+
+  let col = 0, row = 0;
+  for (const domain of domainOrder) {
+    const domainTables = TABLES.filter(t => t.domain === domain);
+    domainTables.forEach((t, i) => {
+      positions[t.name] = { x: col * colSpacing, y: row * rowSpacing };
+      col++;
+      if (col >= tablesPerRow) { col = 0; row++; }
+    });
+    if (col > 0) { col = 0; row++; }
+    row += 0.5; // 域之间留间距
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 渲染域过滤侧栏
+// ══════════════════════════════════════════════════════════════════
+function renderDomainFilter() {
+  const container = document.getElementById('domain-filter');
+  const domainOrder = ['dim','customer','account','tx','wealth','loan','repay','risk','collect','ops'];
+  for (const domain of domainOrder) {
+    const config = DOMAIN_CONFIG[domain];
+    const count = TABLES.filter(t => t.domain === domain).length;
+    const item = document.createElement('div');
+    item.className = 'domain-item';
+    item.dataset.domain = domain;
+    item.innerHTML = `
+      <span class="dot" style="background:${config.color}"></span>
+      <span class="label">${config.label}</span>
+      <span class="count">${count}</span>
+    `;
+    item.addEventListener('click', () => {
+      if (activeDomains.has(domain)) {
+        activeDomains.delete(domain);
+        item.classList.add('disabled');
+      } else {
+        activeDomains.add(domain);
+        item.classList.remove('disabled');
+      }
+      applyFilters();
+    });
+    container.appendChild(item);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 渲染表卡片
+// ══════════════════════════════════════════════════════════════════
+function renderCards() {
+  const canvas = document.getElementById('canvas');
+  const svg = document.getElementById('svg-layer');
+
+  TABLES.forEach(table => {
+    const card = document.createElement('div');
+    card.className = `table-card border-${table.domain}`;
+    card.dataset.tableName = table.name;
+    card.dataset.domain = table.domain;
+
+    const pos = positions[table.name];
+    card.style.left = pos.x + 'px';
+    card.style.top = pos.y + 'px';
+
+    // 头部
+    let html = `<div class="card-header domain-${table.domain}">
+      <span class="color-${table.domain}" style="font-size:11px">■</span>
+      <span>${table.name}</span>
+      <span class="collapse-btn" data-collapsed="false">▼</span>
+    </div>`;
+
+    // 字段
+    html += '<div class="card-body">';
+    table.fields.forEach(f => {
+      let cls = 'field';
+      let icon = '';
+      if (f.pk) { cls += ' pk'; icon = '🔑'; }
+      else if (f.fk) { cls += ' fk'; icon = '🔗'; }
+      html += `<div class="${cls}">
+        <span class="key-icon">${icon}</span>
+        <span class="field-name">${f.n}</span>
+        <span class="field-type">${f.t}</span>
+      </div>`;
+    });
+    html += '</div>';
+
+    // 注释
+    html += `<div class="card-comment">${table.comment}</div>`;
+
+    card.innerHTML = html;
+    canvas.appendChild(card);
+    cardElements[table.name] = card;
+
+    // 拖拽
+    makeDraggable(card, table.name);
+
+    // 折叠
+    const collapseBtn = card.querySelector('.collapse-btn');
+    collapseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const body = card.querySelector('.card-body');
+      const comment = card.querySelector('.card-comment');
+      const isCollapsed = collapseBtn.dataset.collapsed === 'true';
+      if (isCollapsed) {
+        body.classList.remove('collapsed');
+        comment.style.display = '';
+        collapseBtn.dataset.collapsed = 'false';
+        collapseBtn.textContent = '▼';
+      } else {
+        body.classList.add('collapsed');
+        comment.style.display = 'none';
+        collapseBtn.dataset.collapsed = 'true';
+        collapseBtn.textContent = '▶';
+      }
+      renderLines();
+    });
+
+    // hover 高亮关联表和连线
+    card.addEventListener('mouseenter', () => highlightRelations(table.name));
+    card.addEventListener('mouseleave', () => clearHighlight());
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 拖拽
+// ══════════════════════════════════════════════════════════════════
+function makeDraggable(card, tableName) {
+  let startX, startY, startLeft, startTop, isDragging = false;
+
+  card.addEventListener('mousedown', (e) => {
+    if (e.target.classList.contains('collapse-btn')) return;
+    isDragging = true;
+    card.classList.add('dragging');
+    startX = e.clientX;
+    startY = e.clientY;
+    startLeft = positions[tableName].x;
+    startTop = positions[tableName].y;
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const dx = (e.clientX - startX) / scale;
+    const dy = (e.clientY - startY) / scale;
+    positions[tableName].x = startLeft + dx;
+    positions[tableName].y = startTop + dy;
+    card.style.left = positions[tableName].x + 'px';
+    card.style.top = positions[tableName].y + 'px';
+    renderLines();
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      card.classList.remove('dragging');
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 渲染连线（SVG 贝塞尔曲线）
+// ══════════════════════════════════════════════════════════════════
+function renderLines() {
+  const svg = document.getElementById('svg-layer');
+  svg.innerHTML = '';
+  if (!showLines) return;
+
+  // 收集所有 FK 关系
+  const relations = [];
+  TABLES.forEach(table => {
+    table.fields.forEach(f => {
+      if (f.fk) {
+        const [refTable, refCol] = f.fk.split('.');
+        if (tableMap[refTable] && cardElements[refTable] && cardElements[table.name]) {
+          relations.push({ from: table.name, to: refTable, fromField: f.n, toField: refCol });
+        }
+      }
+    });
+  });
+
+  relations.forEach(rel => {
+    const fromCard = cardElements[rel.from];
+    const toCard = cardElements[rel.to];
+    if (fromCard.style.display === 'none' || toCard.style.display === 'none') return;
+
+    const fromPos = positions[rel.from];
+    const toPos = positions[rel.to];
+    const fromW = fromCard.offsetWidth || 240;
+    const fromH = fromCard.offsetHeight || 60;
+    const toW = toCard.offsetWidth || 240;
+    const toH = toCard.offsetHeight || 60;
+
+    // 计算连接点（取最近的边）
+    const fromCx = fromPos.x + fromW / 2;
+    const fromCy = fromPos.y + fromH / 2;
+    const toCx = toPos.x + toW / 2;
+    const toCy = toPos.y + toH / 2;
+
+    let x1, y1, x2, y2;
+    // 判断从哪条边出
+    const dx = toCx - fromCx;
+    const dy = toCy - fromCy;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0) { x1 = fromPos.x + fromW; y1 = fromCy; }
+      else { x1 = fromPos.x; y1 = fromCy; }
+    } else {
+      if (dy > 0) { x1 = fromCx; y1 = fromPos.y + fromH; }
+      else { x1 = fromCx; y1 = fromPos.y; }
+    }
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0) { x2 = toPos.x; y2 = toCy; }
+      else { x2 = toPos.x + toW; y2 = toCy; }
+    } else {
+      if (dy > 0) { x2 = toCx; y2 = toPos.y; }
+      else { x2 = toCx; y2 = toPos.y + toH; }
+    }
+
+    // 贝塞尔控制点
+    const mx = (x1 + x2) / 2;
+    const my = (y1 + y2) / 2;
+    const path = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
+
+    const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pathEl.setAttribute('d', path);
+    pathEl.setAttribute('class', 'fk-line');
+
+    // 颜色按来源表域
+    const table = tableMap[rel.from];
+    const config = DOMAIN_CONFIG[table.domain];
+    pathEl.setAttribute('stroke', config.color);
+
+    pathEl.dataset.from = rel.from;
+    pathEl.dataset.to = rel.to;
+    svg.appendChild(pathEl);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 高亮关联
+// ══════════════════════════════════════════════════════════════════
+function getRelations(tableName) {
+  const related = new Set();
+  TABLES.forEach(table => {
+    table.fields.forEach(f => {
+      if (f.fk) {
+        const refTable = f.fk.split('.')[0];
+        if (table.name === tableName) related.add(refTable);
+        if (refTable === tableName) related.add(table.name);
+      }
+    });
+  });
+  return related;
+}
+
+function highlightRelations(tableName) {
+  const related = getRelations(tableName);
+  related.add(tableName);
+
+  // 高亮卡片
+  Object.keys(cardElements).forEach(name => {
+    if (related.has(name)) {
+      cardElements[name].classList.add('highlight');
+      cardElements[name].classList.remove('dim');
+    } else {
+      cardElements[name].classList.add('dim');
+      cardElements[name].classList.remove('highlight');
+    }
+  });
+
+  // 高亮连线
+  document.querySelectorAll('.fk-line').forEach(line => {
+    if (line.dataset.from === tableName || line.dataset.to === tableName) {
+      line.classList.add('highlight');
+      line.classList.remove('dim');
+    } else {
+      line.classList.add('dim');
+      line.classList.remove('highlight');
+    }
+  });
+}
+
+function clearHighlight() {
+  Object.values(cardElements).forEach(card => {
+    card.classList.remove('highlight', 'dim');
+  });
+  document.querySelectorAll('.fk-line').forEach(line => {
+    line.classList.remove('highlight', 'dim');
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 应用过滤
+// ══════════════════════════════════════════════════════════════════
+function applyFilters() {
+  const searchTerm = document.getElementById('search').value.toLowerCase().trim();
+  let visibleCount = 0;
+
+  TABLES.forEach(table => {
+    const card = cardElements[table.name];
+    const domainVisible = activeDomains.has(table.domain);
+    const searchMatch = !searchTerm ||
+      table.name.toLowerCase().includes(searchTerm) ||
+      table.comment.toLowerCase().includes(searchTerm);
+
+    if (domainVisible && searchMatch) {
+      card.style.display = '';
+      visibleCount++;
+    } else {
+      card.style.display = 'none';
+    }
+  });
+
+  document.getElementById('info').textContent = `共 ${TABLES.length} 张表（显示 ${visibleCount}）`;
+  renderLines();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 平移和缩放
+// ══════════════════════════════════════════════════════════════════
+function updateTransform() {
+  const canvas = document.getElementById('canvas');
+  canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  document.getElementById('zoom-indicator').textContent = Math.round(scale * 100) + '%';
+}
+
+function fitToView() {
+  // 计算所有卡片的边界
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  TABLES.forEach(t => {
+    const pos = positions[t.name];
+    const card = cardElements[t.name];
+    if (!card || card.style.display === 'none') return;
+    const w = card.offsetWidth || 240;
+    const h = card.offsetHeight || 60;
+    minX = Math.min(minX, pos.x);
+    minY = Math.min(minY, pos.y);
+    maxX = Math.max(maxX, pos.x + w);
+    maxY = Math.max(maxY, pos.y + h);
+  });
+  if (minX === Infinity) return;
+
+  const wrapper = document.getElementById('wrapper');
+  const ww = wrapper.clientWidth;
+  const wh = wrapper.clientHeight;
+  const cw = maxX - minX;
+  const ch = maxY - minY;
+
+  const padding = 40;
+  scale = Math.min((ww - padding * 2) / cw, (wh - padding * 2) / ch, 1);
+  panX = padding - minX * scale;
+  panY = padding - minY * scale;
+  updateTransform();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 绑定事件
+// ══════════════════════════════════════════════════════════════════
+function bindEvents() {
+  // 搜索
+  document.getElementById('search').addEventListener('input', applyFilters);
+
+  // 显示/隐藏连线
+  document.getElementById('btn-lines').addEventListener('click', function() {
+    showLines = !showLines;
+    this.classList.toggle('active', showLines);
+    this.textContent = showLines ? '显示连线' : '隐藏连线';
+    renderLines();
+  });
+
+  // 全部折叠
+  document.getElementById('btn-collapse').addEventListener('click', () => {
+    Object.values(cardElements).forEach(card => {
+      const btn = card.querySelector('.collapse-btn');
+      const body = card.querySelector('.card-body');
+      const comment = card.querySelector('.card-comment');
+      body.classList.add('collapsed');
+      comment.style.display = 'none';
+      btn.dataset.collapsed = 'true';
+      btn.textContent = '▶';
+    });
+    allCollapsed = true;
+    setTimeout(renderLines, 50);
+  });
+
+  // 全部展开
+  document.getElementById('btn-expand').addEventListener('click', () => {
+    Object.values(cardElements).forEach(card => {
+      const btn = card.querySelector('.collapse-btn');
+      const body = card.querySelector('.card-body');
+      const comment = card.querySelector('.card-comment');
+      body.classList.remove('collapsed');
+      comment.style.display = '';
+      btn.dataset.collapsed = 'false';
+      btn.textContent = '▼';
+    });
+    allCollapsed = false;
+    setTimeout(renderLines, 50);
+  });
+
+  // 适应屏幕
+  document.getElementById('btn-fit').addEventListener('click', fitToView);
+
+  // 重置布局
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    layoutByDomain();
+    TABLES.forEach(t => {
+      const card = cardElements[t.name];
+      if (card) {
+        card.style.left = positions[t.name].x + 'px';
+        card.style.top = positions[t.name].y + 'px';
+      }
+    });
+    scale = 1; panX = 0; panY = 0;
+    updateTransform();
+    renderLines();
+  });
+
+  // 画布平移
+  const wrapper = document.getElementById('wrapper');
+  let panning = false, panStartX, panStartY, panOriginX, panOriginY;
+
+  wrapper.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.table-card')) return;
+    panning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panOriginX = panX;
+    panOriginY = panY;
+    wrapper.classList.add('panning');
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!panning) return;
+    panX = panOriginX + (e.clientX - panStartX);
+    panY = panOriginY + (e.clientY - panStartY);
+    updateTransform();
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (panning) {
+      panning = false;
+      wrapper.classList.remove('panning');
+    }
+  });
+
+  // 缩放
+  wrapper.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    const newScale = Math.max(0.2, Math.min(3, scale * delta));
+
+    // 以鼠标为中心缩放
+    const rect = wrapper.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    panX = mx - (mx - panX) * (newScale / scale);
+    panY = my - (my - panY) * (newScale / scale);
+    scale = newScale;
+    updateTransform();
+  }, { passive: false });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 启动
+// ══════════════════════════════════════════════════════════════════
+init();
+setTimeout(() => {
+  fitToView();
+  renderLines();
+}, 100);
+</script>
+</body>
+</html>
