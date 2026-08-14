@@ -4,11 +4,23 @@ import { ElMessageBox } from 'element-plus'
 import 'element-plus/es/components/message-box/style/css'
 import xiaoerAvatar from './assets/xiaoer.png'
 import userProfileAvatar from './assets/userProfileAvatar.svg'
+// ═══════════════════════════════════════════════════════════
+// 所有业务字词集中在 domainConfig.js 管理，
+// 要切换到别的行业（电商/教育/医疗）只需改这一个配置文件
+// ═══════════════════════════════════════════════════════════
+import {
+  APP, WELCOME, BUSINESS_PANEL, SESSION_LIST, UI,
+  LOAN_PRODUCT_NAMES, WEALTH_PRODUCT_NAMES, ACCOUNT_PRODUCT_NAMES,
+  CATEGORY_NAMES, CURRENCY_NAMES, RISK_NAMES, CUSTOMER_TYPE_NAMES,
+  OPEN_STATUS_NAMES, REPAYMENT_METHOD_NAMES, WEALTH_OPERATION_NAMES,
+  WEALTH_TYPE_NAMES, NOTIFICATION_TYPE_NAMES, SEND_STATUS_NAMES,
+  COLLECTION_STATUS_NAMES, BILL_STATUS_NAMES, OVERDUE_STATUS_NAMES,
+} from './config/domainConfig.js'
 
-// sender_id 通过 URL 参数传入（?sender_id=xxx），未指定时默认 CUS0000001（金融客户号格式）
+// sender_id 通过 URL 参数传入（?sender_id=xxx），未指定时默认 CUS00000001
 function resolveSenderId() {
   const param = new URLSearchParams(window.location.search).get('sender_id')
-  return param && param.trim() ? param.trim() : 'CUS0000001'
+  return param && param.trim() ? param.trim() : 'CUS00000001'
 }
 const senderId = ref(resolveSenderId())
 const draftMessage = ref('')
@@ -23,22 +35,69 @@ const accounts = ref([])
 const transactions = ref([])
 const wealthProducts = ref([])
 const wealthPositions = ref([])
+const loanProducts = ref([])
 const creditLimits = ref([])
-const loanContracts = ref([])
 const repaymentBills = ref([])
-const collectionCases = ref([])
+const overdues = ref([])
+const notifications = ref([])
 
 const isLoadingSidebar = ref(false)
 const sidebarError = ref('')
-const activeTab = ref('customer')
+// 默认激活 tab（从业务配置中取第一个 tab key）
+const activeTab = ref(BUSINESS_PANEL.TABS[0]?.key || 'customer')
 
-// ── 构建金融 API 请求头（X-Channel-Code + Authorization Bearer） ──────
+// ── 构建金融 API 请求头 ──────
 function buildFinHeaders(extra = {}) {
   return {
-    'X-Channel-Code': 'mobile_bank',
+    'X-Channel-Code': 'MOBILE_BANK',
     'Authorization': `Bearer ${senderId.value.trim()}`,
     ...extra,
   }
+}
+
+// 理财产品其它前缀按格式自动生成中文名称
+function buildWealthName(code) {
+  if (WEALTH_PRODUCT_NAMES[code]) return WEALTH_PRODUCT_NAMES[code]
+  const m = code.match(/^WM_(FIXED90|FIXED180|MIXED|EQUITY|STRUCT)_(\d+)$/)
+  if (m) {
+    const [, prefix, num] = m
+    const n = Number(num)
+    const typeMap = {
+      FIXED90: '90天固定收益', FIXED180: '180天固定收益',
+      MIXED: '平衡配置混合策略', EQUITY: '权益成长优选', STRUCT: '指数挂钩结构性存款',
+    }
+    return `中州${typeMap[prefix] || prefix}${n}${n < 10 ? '' : ''}号`
+  }
+  return code
+}
+
+// ── 映射工具函数 ───────────────────────────────────────────────
+function mapCode(value, dict, fallback) {
+  if (!value) return fallback || '-'
+  return dict[value] || fallback || value
+}
+function loanName(code) { return mapCode(code, LOAN_PRODUCT_NAMES) }
+function wealthName(code) { return buildWealthName(code) }
+function accountProductName(code) { return mapCode(code, ACCOUNT_PRODUCT_NAMES) }
+function categoryName(code) { return mapCode(code, CATEGORY_NAMES) }
+function currencyName(code) { return mapCode(code, CURRENCY_NAMES) }
+function riskName(code) { return mapCode(code, RISK_NAMES) }
+function customerTypeName(code) { return mapCode(code, CUSTOMER_TYPE_NAMES) }
+function openStatusName(code) { return mapCode(code, OPEN_STATUS_NAMES) }
+function repaymentMethodName(code) { return mapCode(code, REPAYMENT_METHOD_NAMES) }
+function wealthOperationName(code) { return mapCode(code, WEALTH_OPERATION_NAMES) }
+function wealthTypeName(code) { return mapCode(code, WEALTH_TYPE_NAMES) }
+function notificationTypeName(code) { return mapCode(code, NOTIFICATION_TYPE_NAMES) }
+function sendStatusName(code) { return mapCode(code, SEND_STATUS_NAMES) }
+function collectionStatusName(code) { return mapCode(code, COLLECTION_STATUS_NAMES) }
+function billStatusName(code) { return mapCode(code, BILL_STATUS_NAMES) }
+function overdueStatusName(code) { return mapCode(code, OVERDUE_STATUS_NAMES) }
+
+// 金额格式化（保留两位小数，带符号）
+function fmtAmt(val) {
+  const n = Number(val || 0)
+  if (!isFinite(n)) return '0.00'
+  return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 // ── 多会话（会话列表）─────────────────────────────────────
@@ -176,12 +235,12 @@ function initBg() {
 }
 // ── 粒子背景系统结束 ──────────────────────────────────────────────────
 
-// 客服数字人配置
+// 客服数字人配置（从业务配置读取，便于换领域）
 const customerService = {
-  name: '小谷',
-  title: '金牌客服',
+  name: APP.AGENT.name,
+  title: APP.AGENT.title,
   avatar: xiaoerAvatar,
-  status: '在线'
+  status: APP.AGENT.status,
 }
 
 // 用户配置
@@ -255,14 +314,17 @@ const chatHistoryEndpoint = computed(() => {
 })
 
 // 金融后端 API 端点（/api/v1/*）
+// 响应格式：{code:0, message:"ok", data:{...}}
+// 列表端点：data.list / data.total_count
 const finApiCustomerDetail = computed(
   () => `/api/v1/customers/${encodeURIComponent(senderId.value.trim())}`
 )
 const finApiCustomerAccounts = computed(
   () => `/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/accounts`
 )
-const finApiAccountTransactions = (accountNo) =>
-  `/api/v1/accounts/${encodeURIComponent(accountNo)}/transactions`
+function finApiAccountTransactions(accountNo) {
+  return `/api/v1/accounts/${encodeURIComponent(accountNo)}/transactions?page_size=100`
+}
 const finApiWealthProducts = '/api/v1/wealth/products'
 const finApiWealthPositions = computed(
   () => `/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/wealth/positions`
@@ -271,14 +333,14 @@ const finApiLoanProducts = '/api/v1/loan/products'
 const finApiCreditLimits = computed(
   () => `/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/credit-limits`
 )
-const finApiLoanContracts = computed(
-  () => `/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/loan/contracts`
-)
 const finApiRepaymentBills = computed(
-  () => `/api/v1/repayment/bills?customer_no=${encodeURIComponent(senderId.value.trim())}`
+  () => `/api/v1/repayment/bills?customer_no=${encodeURIComponent(senderId.value.trim())}&page_size=100`
 )
-const finApiCollectionCases = computed(
-  () => `/api/v1/collection/customers/${encodeURIComponent(senderId.value.trim())}/cases`
+const finApiOverdues = computed(
+  () => `/api/v1/overdues?customer_no=${encodeURIComponent(senderId.value.trim())}&page_size=100`
+)
+const finApiNotifications = computed(
+  () => `/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/notifications?page_size=100`
 )
 
 function createBaseMessage(role) {
@@ -429,13 +491,13 @@ function getObjectTitle(message) {
   if (payload.title) {
     return payload.title
   }
-  return message.objectType === 'order' ? '订单对象' : '商品对象'
+  return message.objectType === 'order' ? UI.objectBadge.order : UI.objectBadge.product
 }
 
 function getObjectIdentifier(message) {
   const payload = message.payload ?? {}
   const id = payload.order_id ?? payload.product_id ?? payload.id
-  const label = message.objectType === 'order' ? '订单号' : '商品号'
+  const label = message.objectType === 'order' ? UI.objectLabel.orderId : UI.objectLabel.productId
   return id ? `${label}：${id}` : label
 }
 
@@ -457,15 +519,18 @@ function getObjectAmount(message) {
 }
 
 // 通用金融 API GET 请求封装
-async function fetchFin(endpoint, headers = {}) {
-  const res = await fetch(endpoint, { headers: buildFinHeaders(headers) })
+// 响应格式：{code:0, message:"ok", data:{...}}
+async function fetchFin(endpoint) {
+  const res = await fetch(endpoint, { headers: buildFinHeaders() })
   const payload = await res.json()
-  if (!res.ok) throw new Error(payload?.detail || payload?.message || `请求 ${endpoint} 失败`)
-  return payload?.data ?? payload ?? null
+  if (!res.ok || payload.code !== 0) {
+    throw new Error(payload?.message || payload?.detail || `请求失败 (${res.status})`)
+  }
+  return payload.data
 }
 
 // 刷新右侧「业务对象」列表。
-// which: 'all' | 'customer' | 'accounts' | 'transactions' | 'wealth' | 'loans' | 'repayments' | 'collections'
+// which: 'all' | 'customer' | 'accounts' | 'transactions' | 'wealth' | 'loans' | 'repayments' | 'overdues' | 'notifications'
 async function refreshObjects(which = 'all') {
   const sid = senderId.value.trim()
   if (!sid) return
@@ -479,9 +544,8 @@ async function refreshObjects(which = 'all') {
     // ── 客户信息 ──────────────────────────────────────────────
     if (need('customer')) {
       tasks.push((async () => {
-        try {
-          customerInfo.value = await fetchFin(finApiCustomerDetail.value)
-        } catch (e) { customerInfo.value = null }
+        try { customerInfo.value = await fetchFin(finApiCustomerDetail.value) }
+        catch { customerInfo.value = null }
       })())
     }
 
@@ -490,31 +554,25 @@ async function refreshObjects(which = 'all') {
       tasks.push((async () => {
         try {
           const data = await fetchFin(finApiCustomerAccounts.value)
-          accounts.value = Array.isArray(data?.accounts) ? data.accounts : Array.isArray(data) ? data : []
-        } catch (e) { accounts.value = [] }
+          accounts.value = data?.list ?? []
+        } catch { accounts.value = [] }
       })())
     }
 
-    // ── 交易流水（取第一个账户的流水，若无则为空） ──────────────
+    // ── 交易流水（取第一个账户的流水） ─────────────────────────
     if (need('transactions')) {
       tasks.push((async () => {
         try {
-          // 先确保有账户列表
           let accts = accounts.value
           if (!accts.length) {
             const data = await fetchFin(finApiCustomerAccounts.value)
-            accts = Array.isArray(data?.accounts) ? data.accounts : Array.isArray(data) ? data : []
+            accts = data?.list ?? []
           }
           if (accts.length) {
-            const accNo = accts[0].account_no || accts[0].accountNo
-            const data = await fetchFin(finApiAccountTransactions(accNo))
-            transactions.value = Array.isArray(data?.transactions) ? data.transactions
-              : Array.isArray(data?.items) ? data.items
-              : Array.isArray(data) ? data : []
-          } else {
-            transactions.value = []
-          }
-        } catch (e) { transactions.value = [] }
+            const data = await fetchFin(finApiAccountTransactions(accts[0].account_no))
+            transactions.value = data?.list ?? []
+          } else { transactions.value = [] }
+        } catch { transactions.value = [] }
       })())
     }
 
@@ -523,38 +581,30 @@ async function refreshObjects(which = 'all') {
       tasks.push((async () => {
         try {
           const data = await fetchFin(finApiWealthProducts)
-          wealthProducts.value = Array.isArray(data?.products) ? data.products
-            : Array.isArray(data?.items) ? data.items
-            : Array.isArray(data) ? data : []
-        } catch (e) { wealthProducts.value = [] }
+          wealthProducts.value = data?.list ?? []
+        } catch { wealthProducts.value = [] }
       })())
       tasks.push((async () => {
         try {
           const data = await fetchFin(finApiWealthPositions.value)
-          wealthPositions.value = Array.isArray(data?.positions) ? data.positions
-            : Array.isArray(data?.items) ? data.items
-            : Array.isArray(data) ? data : []
-        } catch (e) { wealthPositions.value = [] }
+          wealthPositions.value = data?.list ?? []
+        } catch { wealthPositions.value = [] }
       })())
     }
 
-    // ── 贷款：授信额度 + 合同 ─────────────────────────────────
+    // ── 贷款产品 + 授信额度 ───────────────────────────────────
     if (need('loans')) {
       tasks.push((async () => {
         try {
-          const data = await fetchFin(finApiCreditLimits.value)
-          creditLimits.value = Array.isArray(data?.limits) ? data.limits
-            : Array.isArray(data?.items) ? data.items
-            : Array.isArray(data) ? data : []
-        } catch (e) { creditLimits.value = [] }
+          const data = await fetchFin(finApiLoanProducts)
+          loanProducts.value = data?.list ?? []
+        } catch { loanProducts.value = [] }
       })())
       tasks.push((async () => {
         try {
-          const data = await fetchFin(finApiLoanContracts.value)
-          loanContracts.value = Array.isArray(data?.contracts) ? data.contracts
-            : Array.isArray(data?.items) ? data.items
-            : Array.isArray(data) ? data : []
-        } catch (e) { loanContracts.value = [] }
+          const data = await fetchFin(finApiCreditLimits.value)
+          creditLimits.value = data?.list ?? []
+        } catch { creditLimits.value = [] }
       })())
     }
 
@@ -563,28 +613,34 @@ async function refreshObjects(which = 'all') {
       tasks.push((async () => {
         try {
           const data = await fetchFin(finApiRepaymentBills.value)
-          repaymentBills.value = Array.isArray(data?.bills) ? data.bills
-            : Array.isArray(data?.items) ? data.items
-            : Array.isArray(data) ? data : []
-        } catch (e) { repaymentBills.value = [] }
+          repaymentBills.value = data?.list ?? []
+        } catch { repaymentBills.value = [] }
       })())
     }
 
-    // ── 催收案件 ──────────────────────────────────────────────
-    if (need('collections')) {
+    // ── 逾期记录 ──────────────────────────────────────────────
+    if (need('overdues')) {
       tasks.push((async () => {
         try {
-          const data = await fetchFin(finApiCollectionCases.value)
-          collectionCases.value = Array.isArray(data?.cases) ? data.cases
-            : Array.isArray(data?.items) ? data.items
-            : Array.isArray(data) ? data : []
-        } catch (e) { collectionCases.value = [] }
+          const data = await fetchFin(finApiOverdues.value)
+          overdues.value = data?.list ?? []
+        } catch { overdues.value = [] }
+      })())
+    }
+
+    // ── 通知消息 ──────────────────────────────────────────────
+    if (need('notifications')) {
+      tasks.push((async () => {
+        try {
+          const data = await fetchFin(finApiNotifications.value)
+          notifications.value = data?.list ?? []
+        } catch { notifications.value = [] }
       })())
     }
 
     await Promise.all(tasks)
   } catch (error) {
-    sidebarError.value = error instanceof Error ? error.message : '加载业务对象失败。'
+    sidebarError.value = error instanceof Error ? error.message : UI.sidebarErrorDefault
   } finally {
     isLoadingSidebar.value = false
   }
@@ -601,14 +657,14 @@ async function fetchChatHistory() {
     const response = await fetch(chatHistoryEndpoint.value)
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.detail || '加载历史消息失败。')
+      throw new Error(data.detail || UI.chatHistoryFailDefault)
     }
     if (currentSenderId === senderId.value.trim()) {
       setHistoryMessages(Array.isArray(data?.messages) ? data.messages : [])
       await scrollToBottom()
     }
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '加载历史消息失败。'
+    errorMessage.value = error instanceof Error ? error.message : UI.chatHistoryFailDefault
   }
 }
 
@@ -622,11 +678,11 @@ async function fetchSessions() {
     const response = await fetch(`/api/chat/sessions?sender_id=${encodeURIComponent(sid)}`)
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.detail || '加载会话列表失败。')
+      throw new Error(data.detail || UI.sessionListFail)
     }
     sessions.value = Array.isArray(data?.sessions) ? data.sessions : []
   } catch (error) {
-    console.error('加载会话列表失败：', error)
+    console.error(`${UI.sessionListFail}：`, error)
   }
 }
 
@@ -654,7 +710,7 @@ async function startNewSession() {
       body: JSON.stringify({ sender_id: sid }),
     })
   } catch (error) {
-    console.error('重置会话失败：', error)
+    console.error(`${UI.resetSessionFail}：`, error)
   }
   await fetchSessions()
   activeSessionId.value = currentSessionId.value
@@ -665,11 +721,15 @@ async function startNewSession() {
 
 async function deleteSession(id) {
   try {
-    await ElMessageBox.confirm('删除后不可恢复，确定删除该会话？', '删除会话', {
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      SESSION_LIST.deleteConfirm.message,
+      SESSION_LIST.deleteConfirm.title,
+      {
+        confirmButtonText: SESSION_LIST.deleteConfirm.confirm,
+        cancelButtonText:  SESSION_LIST.deleteConfirm.cancel,
+        type: 'warning',
+      }
+    )
   } catch {
     return // 用户点击取消或关闭弹窗
   }
@@ -681,7 +741,7 @@ async function deleteSession(id) {
     })
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.detail || '删除会话失败。')
+      throw new Error(data.detail || UI.deleteSessionFail)
     }
     if (id === activeSessionId.value) {
       activeSessionId.value = null
@@ -689,7 +749,7 @@ async function deleteSession(id) {
     }
     await fetchSessions()
   } catch (error) {
-    console.error('删除会话失败：', error)
+    console.error(`${UI.deleteSessionFail}：`, error)
   }
 }
 
@@ -752,14 +812,14 @@ async function sendPayload(payload, onAppend) {
 
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.detail || '请求失败。')
+      throw new Error(data.detail || UI.requestFail)
     }
 
     appendBotMessages(data.messages ?? [])
     await fetchSessions()
     syncActiveToCurrent()
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '请求失败。'
+    errorMessage.value = error instanceof Error ? error.message : UI.requestFail
   } finally {
     isSending.value = false
   }
@@ -778,7 +838,7 @@ async function sendTextMessage() {
   const currentSenderId = senderId.value.trim()
 
   if (!currentSenderId) {
-    errorMessage.value = '请先输入 sender_id。'
+    errorMessage.value = UI.senderIdRequired
     return
   }
   if (!text) {
@@ -792,7 +852,7 @@ async function sendTextMessage() {
 async function sendOrder(order) {
   const currentSenderId = senderId.value.trim()
   if (!currentSenderId) {
-    errorMessage.value = '请先输入 sender_id。'
+    errorMessage.value = UI.senderIdRequired
     return
   }
 
@@ -814,7 +874,7 @@ async function sendOrder(order) {
 async function sendProduct(product) {
   const currentSenderId = senderId.value.trim()
   if (!currentSenderId) {
-    errorMessage.value = '请先输入 sender_id。'
+    errorMessage.value = UI.senderIdRequired
     return
   }
 
@@ -844,10 +904,11 @@ watch(
       transactions.value = []
       wealthProducts.value = []
       wealthPositions.value = []
+      loanProducts.value = []
       creditLimits.value = []
-      loanContracts.value = []
       repaymentBills.value = []
-      collectionCases.value = []
+      overdues.value = []
+      notifications.value = []
       sessions.value = []
       activeSessionId.value = null
       return
@@ -916,14 +977,14 @@ async function copyBotText(botMsg) {
       <!-- 会话列表：桌面端常驻左侧；移动端为抽屉（由 showSessionList 控制） -->
       <aside class="conversation-list" :class="{ open: showSessionList }">
         <div class="conversation-header">
-          <h2>会话</h2>
+          <h2>{{ SESSION_LIST.title }}</h2>
           <button type="button" class="new-session-button" @click="startNewSession">
             <span>＋</span>
-            <span>新对话</span>
+            <span>{{ SESSION_LIST.newChat }}</span>
           </button>
         </div>
         <div class="conversation-items">
-          <div v-if="!sessions.length" class="conversation-empty">暂无会话</div>
+          <div v-if="!sessions.length" class="conversation-empty">{{ SESSION_LIST.empty }}</div>
           <div
             v-for="s in sessions"
             :key="s.session_id"
@@ -931,13 +992,13 @@ async function copyBotText(botMsg) {
             :class="{ active: s.session_id === activeSessionId }"
           >
             <div class="conversation-main" @click="selectSession(s.session_id)">
-              <span class="conversation-preview">{{ s.preview || '新会话' }}</span>
+              <span class="conversation-preview">{{ s.preview || SESSION_LIST.defaultPreview }}</span>
               <span class="conversation-time">{{ formatSessionTime(s.last_activity_at) }}</span>
             </div>
             <button
               type="button"
               class="conversation-delete"
-              title="删除会话"
+              :title="SESSION_LIST.deleteConfirm.title"
               @click.stop="deleteSession(s.session_id)"
             >🗑</button>
           </div>
@@ -947,11 +1008,14 @@ async function copyBotText(botMsg) {
       <div class="chat-card">
         <header class="chat-header">
           <div class="header-content">
-            <button type="button" class="icon-button mobile-only" title="会话列表" @click="showSessionList = true">
-              <span>☰</span>
+            <!-- 左侧会话按钮：气泡图标（bubble） -->
+            <button type="button" class="icon-button mobile-only" :title="SESSION_LIST.title" @click="showSessionList = true">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
             </button>
             <div class="header-info">
-              <h1>金融客服系统</h1>
+              <h1>{{ APP.SYSTEM_NAME }}</h1>
               <div class="service-info">
                 <div class="service-avatar-wrapper">
                   <img :src="customerService.avatar" class="service-avatar" />
@@ -964,11 +1028,12 @@ async function copyBotText(botMsg) {
               </div>
             </div>
             <div class="header-actions">
-              <button type="button" class="icon-button mobile-only" title="业务对象" @click="showSidebar = true">
+              <!-- 右侧业务对象按钮：三条横线图标 -->
+              <button type="button" class="icon-button mobile-only" :title="BUSINESS_PANEL.title" @click="showSidebar = true">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <circle cx="9" cy="21" r="1"></circle>
-                  <circle cx="20" cy="21" r="1"></circle>
-                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                  <line x1="3" y1="6" x2="21" y2="6"></line>
+                  <line x1="3" y1="12" x2="21" y2="12"></line>
+                  <line x1="3" y1="18" x2="21" y2="18"></line>
                 </svg>
               </button>
             </div>
@@ -980,14 +1045,14 @@ async function copyBotText(botMsg) {
             <div class="welcome-card">
               <div class="welcome-glow"></div>
               <div class="welcome-avatar-wrapper">
-                <img :src="customerService.avatar" class="welcome-avatar" alt="小谷" />
+                <img :src="customerService.avatar" class="welcome-avatar" :alt="customerService.name" />
                 <span class="welcome-status-pulse"></span>
               </div>
               <h2 class="welcome-greeting">Hi，我是 {{ customerService.name }}</h2>
-              <p class="welcome-subtitle">你的专属金融客服，随时为你服务</p>
+              <p class="welcome-subtitle">{{ WELCOME.greeting }}</p>
               <div class="welcome-chips">
                 <button
-                  v-for="chip in ['查询账户余额', '查看交易流水', '理财产品推荐', '贷款申请进度', '还款计划查询', '催收案件详情']"
+                  v-for="chip in WELCOME.quickQuestions"
                   :key="chip"
                   type="button"
                   class="welcome-chip"
@@ -996,10 +1061,7 @@ async function copyBotText(botMsg) {
                 >{{ chip }}</button>
               </div>
               <p class="welcome-features">
-                <span>💬 文字对话</span>
-                <span>🔊 语音播报</span>
-                <span>🏦 账户查询</span>
-                <span>💰 理财信贷</span>
+                <span v-for="(feat, idx) in WELCOME.features" :key="idx">{{ feat.icon }} {{ feat.text }}</span>
               </p>
             </div>
           </div>
@@ -1013,28 +1075,18 @@ async function copyBotText(botMsg) {
 
             <!-- Turn 卡片 -->
             <div v-else class="turn-card" :class="{ 'has-user-message': item.userMessage }">
-              <!-- Turn 标识 -->
-              <div class="turn-header">
-                <span class="turn-badge">Turn {{ item.index }}</span>
-                <span class="turn-label">对话轮次</span>
-              </div>
 
-              <!-- 用户消息区域 -->
+              <!-- 用户消息区域（京东金融风格：蓝色气泡，靠右，无头像） -->
               <div v-if="item.userMessage" class="turn-section user-section">
-                <div class="section-header">
-                  <div class="avatar-wrapper user-avatar">
-                    <img :src="userProfile.avatar" class="avatar" />
-                  </div>
-                  <div class="agent-info">
-                    <span class="agent-name">{{ userProfile.name }}</span>
-                    <span class="agent-label">用户</span>
-                  </div>
+                <div class="section-meta user-meta">
+                  <span class="meta-name">{{ userProfile.name }}</span>
+                  <span class="meta-time">{{ formatTime(item.userMessage.timestamp) }}</span>
                 </div>
                 <div class="turn-bubble user-bubble">
                   <template v-if="item.userMessage.type === 'object'">
                     <div class="object-card" :class="`object-card-${item.userMessage.objectType}`">
                       <div class="object-card-badge">
-                        {{ item.userMessage.objectType === 'order' ? '订单对象' : '商品对象' }}
+                        {{ item.userMessage.objectType === 'order' ? UI.objectBadge.order : UI.objectBadge.product }}
                       </div>
                       <img
                         v-if="item.userMessage.type === 'object' && item.userMessage.payload.cover_url"
@@ -1055,21 +1107,13 @@ async function copyBotText(botMsg) {
                   <template v-else>
                     <p>{{ item.userMessage.text }}</p>
                   </template>
-                  <div class="msg-time">{{ formatTime(item.userMessage.timestamp) }}</div>
                 </div>
               </div>
 
-              <!-- 客服回复区域 -->
+              <!-- 客服回复区域（京东金融风格：白色气泡靠左，无头像，顶部只显示名称） -->
               <div v-if="item.botMessages.length > 0" class="turn-section bot-section">
-                <div class="section-header">
-                  <div class="avatar-wrapper service-avatar">
-                    <img :src="customerService.avatar" class="avatar" />
-                    <span class="status-dot"></span>
-                  </div>
-                  <div class="agent-info">
-                    <span class="agent-name">{{ customerService.name }}</span>
-                    <span class="agent-label">{{ customerService.title }}</span>
-                  </div>
+                <div class="section-meta bot-meta">
+                  <span class="meta-name">{{ customerService.name }}</span>
                 </div>
                 <div class="bot-messages">
                   <div
@@ -1080,7 +1124,7 @@ async function copyBotText(botMsg) {
                     <template v-if="botMsg.type === 'object'">
                       <div class="object-card" :class="`object-card-${botMsg.objectType}`">
                         <div class="object-card-badge">
-                          {{ botMsg.objectType === 'order' ? '订单对象' : '商品对象' }}
+                          {{ botMsg.objectType === 'order' ? UI.objectBadge.order : UI.objectBadge.product }}
                         </div>
                         <img
                           v-if="botMsg.type === 'object' && botMsg.payload.cover_url"
@@ -1105,7 +1149,7 @@ async function copyBotText(botMsg) {
                           <button type="button" class="tts-button"
                             :class="{ 'tts-loading': ttsState[botMsg.id] === 'loading', 'tts-playing': ttsState[botMsg.id] === 'playing' }"
                             :disabled="ttsState[botMsg.id] === 'loading'"
-                            :title="ttsState[botMsg.id] === 'playing' ? '正在播放...' : '语音播报'"
+                            :title="ttsState[botMsg.id] === 'playing' ? UI.tts.playing : UI.tts.default"
                             @click.stop="playTts(botMsg)">
                             <span v-if="ttsState[botMsg.id] === 'loading'" class="tts-spinner"></span>
                             <span v-else-if="ttsState[botMsg.id] === 'playing'" class="tts-bars">
@@ -1115,7 +1159,7 @@ async function copyBotText(botMsg) {
                           </button>
                           <button type="button" class="copy-button"
                             :class="{ 'copy-done': copyState[botMsg.id] }"
-                            :title="copyState[botMsg.id] ? '已复制' : '复制文字'"
+                            :title="copyState[botMsg.id] ? UI.copy.done : UI.copy.title"
                             @click.stop="copyBotText(botMsg)">
                             <span v-if="copyState[botMsg.id]">✓</span>
                             <span v-else>📋</span>
@@ -1143,13 +1187,13 @@ async function copyBotText(botMsg) {
 
         <div v-if="isSending" class="typing-indicator">
           <div class="typing-avatar">
-            <img :src="customerService.avatar" class="avatar-small" alt="小谷" />
+            <img :src="customerService.avatar" class="avatar-small" :alt="customerService.name" />
           </div>
           <div class="typing-bubble">
             <span class="typing-dots">
               <span></span><span></span><span></span>
             </span>
-            <span class="typing-label">小谷正在输入...</span>
+            <span class="typing-label">{{ UI.typingLabel(customerService.name) }}</span>
           </div>
         </div>
 
@@ -1161,281 +1205,207 @@ async function copyBotText(botMsg) {
           <input
             v-model="draftMessage"
             type="text"
-            placeholder="请输入咨询内容..."
+            :placeholder="UI.sendPlaceholder"
             :disabled="isSending"
           />
           <button type="submit" :disabled="isSending || !draftMessage.trim()">
-            {{ isSending ? '发送中...' : '发送' }}
+            {{ isSending ? UI.sending : UI.send }}
           </button>
         </form>
       </div>
 
       <aside class="sidebar" :class="{ open: showSidebar }">
         <div class="sidebar-header">
-          <h2>业务对象</h2>
+          <h2>{{ BUSINESS_PANEL.title }}</h2>
         </div>
 
-        <!-- 金融业务 Tabs -->
+        <!-- 金融业务 Tabs（从配置动态生成，换领域时只要改 BUSINESS_PANEL.TABS） -->
         <div class="tabs tabs-wrap">
-          <button type="button" class="tab-button" :class="{ active: activeTab === 'customer' }"
-            @click="activeTab = 'customer'; refreshObjects('customer')">客户</button>
-          <button type="button" class="tab-button" :class="{ active: activeTab === 'accounts' }"
-            @click="activeTab = 'accounts'; refreshObjects('accounts')">账户</button>
-          <button type="button" class="tab-button" :class="{ active: activeTab === 'transactions' }"
-            @click="activeTab = 'transactions'; refreshObjects('transactions')">交易</button>
-          <button type="button" class="tab-button" :class="{ active: activeTab === 'wealth' }"
-            @click="activeTab = 'wealth'; refreshObjects('wealth')">理财</button>
-          <button type="button" class="tab-button" :class="{ active: activeTab === 'loans' }"
-            @click="activeTab = 'loans'; refreshObjects('loans')">贷款</button>
-          <button type="button" class="tab-button" :class="{ active: activeTab === 'repayments' }"
-            @click="activeTab = 'repayments'; refreshObjects('repayments')">还款</button>
-          <button type="button" class="tab-button" :class="{ active: activeTab === 'collections' }"
-            @click="activeTab = 'collections'; refreshObjects('collections')">催收</button>
+          <button
+            v-for="tab in BUSINESS_PANEL.TABS"
+            :key="tab.key"
+            type="button"
+            class="tab-button"
+            :class="{ active: activeTab === tab.key }"
+            @click="activeTab = tab.key; refreshObjects(tab.refreshKey || tab.key)"
+          >{{ tab.label }}</button>
         </div>
 
         <p v-if="sidebarError" class="sidebar-error">{{ sidebarError }}</p>
 
         <!-- ── Tab: 客户信息 ────────────────────────────────────────── -->
         <div v-if="activeTab === 'customer'" class="sidebar-list">
-          <div v-if="!customerInfo && !isLoadingSidebar" class="sidebar-empty">
-            暂无客户数据
-          </div>
+          <div v-if="!customerInfo && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.customer }}</div>
           <article v-if="customerInfo" class="sidebar-card">
             <div class="card-top">
-              <div class="card-title">
-                {{ customerInfo.name || customerInfo.full_name || customerInfo.customer_name || '客户信息' }}
-              </div>
-              <span
-                class="status-badge"
-                :class="(customerInfo.status === 'ACTIVE' || customerInfo.status === 'active') ? 'status-success' : 'status-muted'"
-              >{{ customerInfo.status || '正常' }}</span>
+              <div class="card-title">{{ customerInfo?.customer_profile?.customer_name || BUSINESS_PANEL.CARD_DEFAULTS.customerTitle }}</div>
+              <span class="status-badge status-success">{{ customerInfo?.customer_status || UI.customerStatusDefault }}</span>
             </div>
-            <div class="card-meta">客户号：{{ customerInfo.customer_no || customerInfo.id || '-' }}</div>
-            <div class="card-meta">客户类型：{{ customerInfo.customer_type || customerInfo.type || '个人' }}</div>
-            <div class="card-meta">手机号：{{ customerInfo.phone || customerInfo.mobile || customerInfo.contact_phone || '-' }}</div>
-            <div class="card-meta">证件号：{{ customerInfo.id_card_no || customerInfo.id_number || '-' }}</div>
-            <div class="card-meta">注册时间：{{ customerInfo.created_at || customerInfo.register_time || '-' }}</div>
+            <div class="card-meta">客户号：{{ customerInfo?.customer_profile?.customer_no || '-' }}</div>
+            <div class="card-meta">客户类型：{{ customerTypeName(customerInfo?.customer_profile?.customer_type) }}</div>
+            <div class="card-meta">风险等级：{{ customerInfo?.risk_level?.risk_level_name || riskName(customerInfo?.risk_level?.risk_level_code) }}</div>
+            <div class="card-meta">KYC状态：{{ customerInfo?.kyc_status || '-' }}</div>
+            <div class="card-meta">开户时间：{{ customerInfo?.customer_profile?.opened_at || '-' }}</div>
           </article>
         </div>
 
         <!-- ── Tab: 银行账户 ────────────────────────────────────────── -->
         <div v-else-if="activeTab === 'accounts'" class="sidebar-list">
-          <div v-if="!accounts.length && !isLoadingSidebar" class="sidebar-empty">暂无账户数据</div>
-          <article v-for="acc in accounts" :key="acc.account_no || acc.accountNo || acc.id" class="sidebar-card">
+          <div v-if="!accounts.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.accounts }}</div>
+          <article v-for="acc in accounts" :key="acc.account_no" class="sidebar-card">
             <div class="card-top">
-              <div class="card-title">{{ acc.account_name || acc.account_type || '银行账户' }}</div>
-              <div class="card-amount">{{ formatAmount(acc.balance || acc.available_balance) }}</div>
+              <div class="card-title">{{ acc.account_product?.product_name || accountProductName(acc.account_product?.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.accountTitle }}</div>
+              <div class="card-amount">{{ currencyName(acc.currency_code) }} {{ fmtAmt(acc.balance_amount) }}</div>
             </div>
-            <div class="card-meta">账号：{{ acc.account_no || acc.accountNo || '-' }}</div>
-            <div class="card-meta">币种：{{ acc.currency || 'CNY' }} · 类型：{{ acc.account_type || '-' }}</div>
-            <div class="card-meta">开户行：{{ acc.bank_name || acc.branch_name || '-' }}</div>
-            <div class="card-meta">
-              <span
-                class="status-badge"
-                :class="(acc.status === 'ACTIVE' || acc.status === 'active' || acc.status === '正常') ? 'status-success' : 'status-muted'"
-              >{{ acc.status || '正常' }}</span>
-            </div>
+            <div class="card-meta">账号：{{ acc.account_no }}</div>
+            <div class="card-meta">币种：{{ currencyName(acc.currency_code) }}（{{ acc.currency_code || 'CNY' }}）</div>
+            <div class="card-meta">产品代码：{{ acc.account_product?.product_code || '-' }}</div>
           </article>
         </div>
 
         <!-- ── Tab: 交易流水 ────────────────────────────────────────── -->
         <div v-else-if="activeTab === 'transactions'" class="sidebar-list">
-          <div v-if="!transactions.length && !isLoadingSidebar" class="sidebar-empty">暂无交易流水</div>
-          <article
-            v-for="txn in transactions"
-            :key="txn.txn_id || txn.transaction_id || txn.id"
-            class="sidebar-card"
-          >
+          <div v-if="!transactions.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.transactions }}</div>
+          <article v-for="txn in transactions" :key="txn.transaction_no || txn.id" class="sidebar-card">
             <div class="card-top">
-              <div class="card-title">{{ txn.txn_type || txn.transaction_type || txn.type || '交易' }}</div>
-              <div
-                class="card-amount"
-                :style="{ color: (txn.direction === 'IN' || txn.amount > 0) ? '#00b42a' : '#f53f3f' }"
-              >
-                {{ (txn.direction === 'IN' || txn.amount > 0) ? '+' : '-' }}{{ formatAmount(txn.amount) }}
+              <div class="card-title">{{ txn.transaction_type || BUSINESS_PANEL.CARD_DEFAULTS.transactionTitle }}</div>
+              <div class="card-amount" :style="{ color: Number(txn.transaction_amount) >= 0 ? '#00b42a' : '#f53f3f' }">
+                {{ Number(txn.transaction_amount) >= 0 ? '+' : '' }}{{ fmtAmt(txn.transaction_amount) }}
               </div>
             </div>
-            <div class="card-meta">流水号：{{ txn.txn_id || txn.transaction_id || '-' }}</div>
-            <div class="card-meta">账户：{{ txn.account_no || '-' }}</div>
-            <div class="card-meta">摘要：{{ txn.remark || txn.summary || '-' }}</div>
-            <div class="card-meta">时间：{{ txn.txn_time || txn.created_at || '-' }}</div>
+            <div class="card-meta">流水号：{{ txn.transaction_no || '-' }}</div>
+            <div class="card-meta">时间：{{ txn.transaction_at || '-' }}</div>
+            <div class="card-meta" v-if="txn.counterparty_name">交易对手：{{ txn.counterparty_name }}</div>
             <div class="card-meta">
-              <span
-                class="status-badge"
-                :class="(txn.status === 'SUCCESS' || txn.status === 'success' || txn.status === '成功')
-                  ? 'status-success'
-                  : (txn.status === 'FAILED' || txn.status === 'failed') ? 'status-danger' : 'status-info'"
-              >{{ txn.status || '处理中' }}</span>
+              <span class="status-badge" :class="txn.transaction_status === 'success' ? 'status-success' : txn.transaction_status === 'failed' ? 'status-danger' : 'status-info'">
+                {{ txn.transaction_status || '处理中' }}
+              </span>
             </div>
           </article>
         </div>
 
-        <!-- ── Tab: 理财（产品 + 持仓） ─────────────────────────────── -->
+        <!-- ── Tab: 理财（持仓 + 产品） ─────────────────────────────── -->
         <div v-else-if="activeTab === 'wealth'" class="sidebar-list">
-          <div v-if="!wealthProducts.length && !wealthPositions.length && !isLoadingSidebar" class="sidebar-empty">
-            暂无理财数据
-          </div>
+          <div v-if="!wealthPositions.length && !wealthProducts.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.wealth }}</div>
 
-          <!-- 持仓 -->
           <template v-if="wealthPositions.length">
-            <div class="section-label">我的持仓</div>
-            <article
-              v-for="pos in wealthPositions"
-              :key="pos.position_id || pos.product_code + '-' + (pos.id || '')"
-              class="sidebar-card"
-            >
+            <div class="section-label">{{ BUSINESS_PANEL.SECTIONS.wealth.positions }}</div>
+            <article v-for="pos in wealthPositions" :key="pos.id || pos.position_no" class="sidebar-card">
               <div class="card-top">
-                <div class="card-title">{{ pos.product_name || pos.product_code || '理财产品' }}</div>
-                <div class="card-amount">{{ formatAmount(pos.market_value || pos.holding_amount || pos.hold_amount) }}</div>
+                <div class="card-title">{{ pos.product_name || wealthName(pos.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.wealthPosition }}</div>
+                <div class="card-amount">{{ fmtAmt(pos.holding_amount || pos.market_value) }}</div>
               </div>
               <div class="card-meta">产品代码：{{ pos.product_code || '-' }}</div>
-              <div class="card-meta">持有份额：{{ pos.shares || pos.holding_shares || '-' }}</div>
-              <div class="card-meta">持仓成本：{{ formatAmount(pos.cost || pos.cost_value) }}</div>
-              <div class="card-meta" v-if="pos.profit || pos.profit_loss">
-                浮动盈亏：
-                <span :style="{ color: Number(pos.profit || pos.profit_loss) >= 0 ? '#00b42a' : '#f53f3f' }">
-                  {{ Number(pos.profit || pos.profit_loss) >= 0 ? '+' : '' }}{{ formatAmount(pos.profit || pos.profit_loss) }}
-                </span>
+              <div class="card-meta">持有份额：{{ pos.holding_shares || pos.shares || '-' }}</div>
+              <div class="card-meta" :style="{ color: Number(pos.income) >= 0 ? '#00b42a' : '#f53f3f' }">
+                累计收益：{{ Number(pos.income) >= 0 ? '+' : '' }}{{ fmtAmt(pos.income) }}
               </div>
-              <div class="card-meta">购买时间：{{ pos.purchase_time || pos.created_at || '-' }}</div>
+              <div class="card-meta">持仓状态：{{ pos.position_status || '-' }}</div>
             </article>
           </template>
 
-          <!-- 理财产品列表 -->
           <template v-if="wealthProducts.length">
-            <div class="section-label">在售产品</div>
-            <article
-              v-for="prod in wealthProducts"
-              :key="prod.product_id || prod.product_code || prod.id"
-              class="sidebar-card"
-            >
+            <div class="section-label">{{ BUSINESS_PANEL.SECTIONS.wealth.products }}</div>
+            <article v-for="prod in wealthProducts" :key="prod.product_code" class="sidebar-card">
               <div class="card-top">
-                <div class="card-title">{{ prod.product_name || prod.name || '理财产品' }}</div>
+                <div class="card-title">{{ prod.product_name || wealthName(prod.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.wealthProduct }}</div>
                 <div class="card-amount" style="color: #d97706;">
-                  {{ prod.annualized_return || prod.expected_return || prod.yield_rate ? `${prod.annualized_return || prod.expected_return || prod.yield_rate}%` : '-' }}
+                  {{ prod.expected_yield_rate ? `${(Number(prod.expected_yield_rate) * 100).toFixed(2)}%` : '-' }}
                 </div>
               </div>
-              <div class="card-meta">产品代码：{{ prod.product_code || '-' }}</div>
-              <div class="card-meta">风险等级：{{ prod.risk_level || 'R1' }} · 期限：{{ prod.term || prod.duration || '-' }}</div>
-              <div class="card-meta">起购金额：{{ formatAmount(prod.min_amount || prod.min_purchase) }}</div>
-              <div class="card-meta">产品类型：{{ prod.product_type || '固定收益' }}</div>
+              <div class="card-meta">产品代码：{{ prod.product_code }}</div>
+              <div class="card-meta">产品类型：{{ wealthTypeName(prod.product_type) }} · 运作：{{ wealthOperationName(prod.operation_mode) }}</div>
+              <div class="card-meta">风险等级：{{ riskName(prod.risk_level?.risk_level_code) || prod.risk_level || '-' }}</div>
+              <div class="card-meta">状态：{{ openStatusName(prod.open_status) }}</div>
             </article>
           </template>
         </div>
 
-        <!-- ── Tab: 贷款（授信 + 合同） ─────────────────────────────── -->
+        <!-- ── Tab: 信贷（授信额度 + 贷款产品） ─────────────────────── -->
         <div v-else-if="activeTab === 'loans'" class="sidebar-list">
-          <div v-if="!creditLimits.length && !loanContracts.length && !isLoadingSidebar" class="sidebar-empty">
-            暂无贷款数据
-          </div>
+          <div v-if="!creditLimits.length && !loanProducts.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.loans }}</div>
 
-          <!-- 授信额度 -->
           <template v-if="creditLimits.length">
-            <div class="section-label">授信额度</div>
-            <article
-              v-for="lim in creditLimits"
-              :key="lim.credit_id || lim.id || lim.product_code"
-              class="sidebar-card"
-            >
+            <div class="section-label">{{ BUSINESS_PANEL.SECTIONS.loans.limits }}</div>
+            <article v-for="lim in creditLimits" :key="lim.limit_no" class="sidebar-card">
               <div class="card-top">
-                <div class="card-title">{{ lim.product_name || lim.product_code || '授信额度' }}</div>
-                <div class="card-amount">{{ formatAmount(lim.total_amount || lim.limit_amount) }}</div>
+                <div class="card-title">{{ loanName(lim.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.loanLimit }}</div>
+                <div class="card-amount">{{ fmtAmt(lim.total_limit_amount) }}</div>
               </div>
-              <div class="card-meta">可用额度：{{ formatAmount(lim.available_amount || lim.available) }}</div>
-              <div class="card-meta">已用额度：{{ formatAmount(lim.used_amount || lim.used) }}</div>
               <div class="card-meta">产品代码：{{ lim.product_code || '-' }}</div>
-              <div class="card-meta">
-                <span
-                  class="status-badge"
-                  :class="lim.status === 'ACTIVE' ? 'status-success' : 'status-muted'"
-                >{{ lim.status || '有效' }}</span>
-              </div>
+              <div class="card-meta">可用额度：{{ fmtAmt(lim.available_limit_amount) }}</div>
+              <div class="card-meta">已用额度：{{ fmtAmt(Number(lim.total_limit_amount || 0) - Number(lim.available_limit_amount || 0) - Number(lim.frozen_limit_amount || 0)) }}</div>
+              <div class="card-meta">额度编号：{{ lim.limit_no }}</div>
+              <div class="card-meta">有效期至：{{ lim.valid_to || '-' }}</div>
             </article>
           </template>
 
-          <!-- 贷款合同 -->
-          <template v-if="loanContracts.length">
-            <div class="section-label">贷款合同</div>
-            <article
-              v-for="loan in loanContracts"
-              :key="loan.contract_no || loan.contract_id || loan.id"
-              class="sidebar-card"
-            >
+          <template v-if="loanProducts.length">
+            <div class="section-label">{{ BUSINESS_PANEL.SECTIONS.loans.products }}</div>
+            <article v-for="loan in loanProducts" :key="loan.product_code" class="sidebar-card">
               <div class="card-top">
-                <div class="card-title">{{ loan.product_name || '贷款合同' }}</div>
-                <div class="card-amount">{{ formatAmount(loan.principal_balance || loan.outstanding_amount || loan.principal) }}</div>
+                <div class="card-title">{{ loan.product_name || loanName(loan.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.loanProduct }}</div>
               </div>
-              <div class="card-meta">合同号：{{ loan.contract_no || loan.contract_id || '-' }}</div>
-              <div class="card-meta">借款金额：{{ formatAmount(loan.loan_amount || loan.principal) }}</div>
-              <div class="card-meta">利率：{{ loan.interest_rate || '-' }} · 期限：{{ loan.term || loan.loan_term || '-' }}{{ loan.term_unit ? ' ' + loan.term_unit : '' }}</div>
-              <div class="card-meta">放款日：{{ loan.disbursement_date || '-' }}</div>
-              <div class="card-meta">到期日：{{ loan.maturity_date || loan.due_date || '-' }}</div>
-              <div class="card-meta">
-                <span
-                  class="status-badge"
-                  :class="(loan.status === 'NORMAL' || loan.status === 'normal' || loan.status === '正常') ? 'status-success'
-                    : (loan.status === 'OVERDUE' || loan.status === 'overdue') ? 'status-danger' : 'status-info'"
-                >{{ loan.status || '正常' }}</span>
-              </div>
+              <div class="card-meta">产品代码：{{ loan.product_code }}</div>
+              <div class="card-meta">贷款类型：{{ categoryName(loan.loan_type) || loan.loan_type || '-' }}</div>
+              <div class="card-meta">年利率：{{ (Number(loan.annual_interest_rate) * 100).toFixed(1) }}%（{{ (Number(loan.min_interest_rate) * 100).toFixed(1) }}% ~ {{ (Number(loan.max_interest_rate) * 100).toFixed(1) }}%）</div>
+              <div class="card-meta">金额范围：{{ fmtAmt(loan.min_amount) }} ~ {{ fmtAmt(loan.max_amount) }}</div>
+              <div class="card-meta">期限范围：{{ loan.min_term_months }} ~ {{ loan.max_term_months }} 个月</div>
+              <div class="card-meta">还款方式：{{ repaymentMethodName(loan.repayment_method) }}</div>
+              <div class="card-meta">风险等级：{{ riskName(loan.risk_level?.risk_level_code) || '-' }}</div>
             </article>
           </template>
         </div>
 
         <!-- ── Tab: 还款账单 ──────────────────────────────────────── -->
         <div v-else-if="activeTab === 'repayments'" class="sidebar-list">
-          <div v-if="!repaymentBills.length && !isLoadingSidebar" class="sidebar-empty">暂无还款账单</div>
-          <article
-            v-for="bill in repaymentBills"
-            :key="bill.bill_no || bill.bill_id || bill.id"
-            class="sidebar-card"
-          >
+          <div v-if="!repaymentBills.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.repayments }}</div>
+          <article v-for="bill in repaymentBills" :key="bill.bill_no" class="sidebar-card">
             <div class="card-top">
-              <div class="card-title">{{ bill.period || bill.term ? `第 ${bill.period || bill.term} 期` : (bill.bill_no ? '账单' : '还款账单') }}</div>
-              <div class="card-amount">{{ formatAmount(bill.total_amount || bill.payable_amount) }}</div>
+              <div class="card-title">{{ bill.bill_no ? `账单 ${bill.bill_no}` : BUSINESS_PANEL.CARD_DEFAULTS.repaymentBill }}</div>
+              <div class="card-amount" style="color: #f53f3f;">待还 {{ fmtAmt(bill.outstanding_amount) }}</div>
             </div>
-            <div class="card-meta">账单号：{{ bill.bill_no || bill.bill_id || '-' }}</div>
-            <div class="card-meta">本金：{{ formatAmount(bill.principal || bill.principal_amount) }} · 利息：{{ formatAmount(bill.interest || bill.interest_amount) }}</div>
-            <div class="card-meta">应还日期：{{ bill.due_date || bill.repay_date || '-' }}</div>
-            <div class="card-meta">合同号：{{ bill.contract_no || '-' }}</div>
+            <div class="card-meta">已还金额：{{ fmtAmt(bill.paid_amount) }}</div>
             <div class="card-meta">
-              <span
-                class="status-badge"
-                :class="(bill.status === 'PAID' || bill.status === 'paid' || bill.status === '已还')
-                  ? 'status-success'
-                  : (bill.status === 'OVERDUE' || bill.status === 'overdue' || bill.status === '逾期')
-                    ? 'status-danger'
-                    : (bill.status === 'PENDING' || bill.status === 'pending' || bill.status === '待还')
-                      ? 'status-warning' : 'status-info'"
-              >{{ bill.status || '待还款' }}</span>
+              <span class="status-badge" :class="(bill.bill_status === 'settled' || bill.bill_status === 'paid') ? 'status-success' : bill.bill_status === 'overdue' ? 'status-danger' : 'status-warning'">
+                {{ billStatusName(bill.bill_status) }}
+              </span>
             </div>
           </article>
         </div>
 
-        <!-- ── Tab: 催收案件 ──────────────────────────────────────── -->
-        <div v-else-if="activeTab === 'collections'" class="sidebar-list">
-          <div v-if="!collectionCases.length && !isLoadingSidebar" class="sidebar-empty">暂无催收案件</div>
-          <article
-            v-for="c in collectionCases"
-            :key="c.case_no || c.case_id || c.id"
-            class="sidebar-card"
-          >
+        <!-- ── Tab: 逾期记录 ──────────────────────────────────────── -->
+        <div v-else-if="activeTab === 'overdues'" class="sidebar-list">
+          <div v-if="!overdues.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.overdues }}</div>
+          <article v-for="od in overdues" :key="od.overdue_no" class="sidebar-card">
             <div class="card-top">
-              <div class="card-title">{{ c.case_name || '催收案件' }}</div>
-              <div class="card-amount" style="color: #f53f3f;">{{ formatAmount(c.outstanding_amount || c.total_amount || c.owed_amount) }}</div>
+              <div class="card-title">{{ od.overdue_no ? `逾期 ${od.overdue_no}` : BUSINESS_PANEL.CARD_DEFAULTS.overdueRecord }}</div>
+              <div class="card-amount" style="color: #f53f3f;">{{ fmtAmt(od.overdue_total_amount) }}</div>
             </div>
-            <div class="card-meta">案件号：{{ c.case_no || c.case_id || '-' }}</div>
-            <div class="card-meta">逾期本金：{{ formatAmount(c.overdue_principal || c.outstanding_principal) }}</div>
-            <div class="card-meta">逾期天数：{{ c.overdue_days || c.dpd || '-' }} 天</div>
-            <div class="card-meta">合同号：{{ c.contract_no || '-' }}</div>
-            <div class="card-meta">立案时间：{{ c.create_time || c.created_at || '-' }}</div>
+            <div class="card-meta">逾期天数：<b>{{ od.overdue_days || 0 }}</b> 天</div>
+            <div class="card-meta">逾期本金：{{ fmtAmt(od.overdue_principal_amount) }} · 罚金：{{ fmtAmt(od.penalty_amount) }}</div>
+            <div class="card-meta">催收状态：{{ collectionStatusName(od.collection_status) }}</div>
             <div class="card-meta">
-              <span
-                class="status-badge"
-                :class="(c.status === 'PENDING' || c.status === '待处理') ? 'status-warning'
-                  : (c.status === 'COLLECTING' || c.status === '催收中') ? 'status-info'
-                  : (c.status === 'RESOLVED' || c.status === '已结清') ? 'status-success' : 'status-danger'"
-              >{{ c.status || '待处理' }}</span>
+              <span class="status-badge" :class="od.status === 'settled' ? 'status-success' : od.status === 'collection' ? 'status-danger' : 'status-warning'">
+                {{ overdueStatusName(od.status) }}
+              </span>
             </div>
+          </article>
+        </div>
+
+        <!-- ── Tab: 通知消息 ──────────────────────────────────────── -->
+        <div v-else-if="activeTab === 'notifications'" class="sidebar-list">
+          <div v-if="!notifications.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.notifications }}</div>
+          <article v-for="msg in notifications" :key="msg.notification_no || msg.id" class="sidebar-card">
+            <div class="card-top">
+              <div class="card-title">{{ msg.message_title || notificationTypeName(msg.message_type) || BUSINESS_PANEL.CARD_DEFAULTS.notification }}</div>
+              <span class="status-badge" :class="msg.send_status === 'sent' ? 'status-success' : msg.send_status === 'failed' ? 'status-danger' : 'status-info'">
+                {{ sendStatusName(msg.send_status) }}
+              </span>
+            </div>
+            <div class="card-meta" v-if="msg.message_content">{{ msg.message_content }}</div>
+            <div class="card-meta">类型：{{ notificationTypeName(msg.message_type) }}（{{ msg.message_type || '-' }}）</div>
+            <div class="card-meta">时间：{{ msg.created_at || msg.sent_at || '-' }}</div>
           </article>
         </div>
       </aside>
@@ -1470,12 +1440,12 @@ async function copyBotText(botMsg) {
   --color-text-secondary: #646a73;
   --color-text-muted: #8f959e;
   --color-text-inverse: #ffffff;
-  /* Accent — teal (brand) */
-  --color-accent: #14b8a6;
-  --color-accent-strong: #0d9488;
-  --color-accent-soft: rgba(20, 184, 166, 0.12);
-  --color-accent-glow: rgba(20, 184, 166, 0.16);
-  --color-accent-soft-bg: rgba(20, 184, 166, 0.06);
+  /* Accent — 京东金融蓝 */
+  --color-accent: #276EFF;
+  --color-accent-strong: #1E5CE6;
+  --color-accent-soft: rgba(39, 110, 255, 0.12);
+  --color-accent-glow: rgba(39, 110, 255, 0.16);
+  --color-accent-soft-bg: rgba(39, 110, 255, 0.06);
   /* Warm — amber (products/orders) */
   --color-warm: #f59e0b;
   --color-warm-strong: #d97706;
@@ -1485,18 +1455,18 @@ async function copyBotText(botMsg) {
   /* Semantic */
   --color-success: #00b42a;
   --color-success-soft: rgba(0, 180, 42, 0.12);
-  --color-info: #3b6ef5;
-  --color-info-soft: rgba(59, 110, 245, 0.10);
+  --color-info: #276EFF;
+  --color-info-soft: rgba(39, 110, 255, 0.10);
   --color-danger: #f53f3f;
   --color-danger-soft: rgba(245, 63, 63, 0.10);
   /* Borders — subtle gray lines on light surfaces */
   --color-border: #e5e6eb;
   --color-border-light: #eef0f3;
   --color-border-strong: #d0d3d9;
-  /* User bubble — light salmon (淘宝/京东风格) */
-  --color-user-bubble-bg: #ffe9e3;
-  --color-user-bubble-text: #5c2b22;
-  --color-user-bubble-border: #ffd3c7;
+  /* User bubble — 京东金融蓝（默认值，样式中已硬编码覆盖） */
+  --color-user-bubble-bg: #276EFF;
+  --color-user-bubble-text: #ffffff;
+  --color-user-bubble-border: #276EFF;
   /* Conversation canvas — gray */
   --color-chat-bg: #f0f2f5;
   /* ── Radii ── */
@@ -1967,148 +1937,81 @@ async function copyBotText(botMsg) {
 
 .turn-header,
 .turn-badge,
-.turn-label {
+.turn-label,
+.section-header,
+.avatar-wrapper,
+.avatar,
+.status-dot,
+.agent-info,
+.agent-label,
+.role-icon,
+.role-label,
+.msg-time {
   display: none;
 }
 
+/* ── 京东金融风格：对话区 ────────────────────────────── */
 .turn-section {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding: 4px 0;
 }
 
-.section-header {
+/* 发送者元信息：名称+时间（用户在右，客服在左） */
+.section-meta {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-/* 用户消息：头像在右侧（参考淘宝/京东客服页） */
-.user-section .section-header {
-  flex-direction: row-reverse;
-}
-.user-section .agent-info {
-  align-items: flex-end;
-  text-align: right;
-}
-
-/* 头像样式 */
-.avatar-wrapper {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid var(--color-border);
-  background: #f3f4f6;
-  transition: all var(--duration-base) var(--ease-out-expo);
-}
-
-.user-avatar .avatar {
-  border: 3px solid transparent;
-  background: linear-gradient(#ffffff, #ffffff) padding-box,
-              linear-gradient(135deg, var(--color-info), var(--color-accent)) border-box;
-  box-shadow: 0 2px 14px var(--color-info-soft);
-}
-
-.service-avatar .avatar {
-  border-color: var(--color-success);
-  box-shadow: 0 2px 10px var(--color-success-soft);
-}
-
-.status-dot {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  width: 12px;
-  height: 12px;
-  background: var(--color-success);
-  border: 2px solid var(--color-surface);
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.65;
-    transform: scale(1.12);
-  }
-}
-
-.agent-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.agent-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.agent-label {
+  gap: 8px;
   font-size: 12px;
-  color: var(--color-text-muted);
-  font-weight: 500;
+  padding: 0 2px;
+}
+.section-meta .meta-name {
+  font-weight: 600;
+  color: #606266;
+}
+.section-meta .meta-time {
+  color: #909399;
+  font-weight: 400;
+}
+.user-meta {
+  justify-content: flex-end;
+}
+.bot-meta {
+  justify-content: flex-start;
+}
+.bot-meta .meta-name {
+  color: #276EFF;
 }
 
-.user-section .agent-name {
-  color: var(--color-info);
-}
-
-.bot-section .agent-name {
-  color: var(--color-success);
-}
-
-.role-icon {
-  font-size: 16px;
-}
-
-.role-label {
-  color: var(--color-text-secondary);
-}
-
-.user-section .role-label {
-  color: var(--color-info);
-}
-
-.bot-section .role-label {
-  color: var(--color-success);
-}
-
+/* 气泡基础样式 */
 .turn-bubble {
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
-  max-width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 78%;
+  position: relative;
+  line-height: 1.6;
 }
 
+/* 用户气泡：京东金融蓝，白字，靠右，右圆角略小 */
 .user-bubble {
-  background: var(--color-user-bubble-bg);
-  border: 1px solid var(--color-user-bubble-border);
-  color: var(--color-user-bubble-text);
-  box-shadow: var(--shadow-xs);
+  align-self: flex-end;
   margin-left: auto;
-  max-width: 85%;
+  background: linear-gradient(135deg, #276EFF 0%, #1E5CE6 100%);
+  color: #ffffff;
+  border-radius: 12px 4px 12px 12px;
+  box-shadow: 0 2px 8px rgba(39, 110, 255, 0.18);
 }
 
+/* 客服气泡：白色，浅灰边，靠左，左圆角略小 */
 .bot-bubble {
-  background: #ffffff;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-primary);
-  box-shadow: var(--shadow-xs);
   align-self: flex-start;
-  max-width: 85%;
+  margin-right: auto;
+  background: #ffffff;
+  color: #1f2937;
+  border: 1px solid #ececec;
+  border-radius: 4px 12px 12px 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 
 .bot-messages {
@@ -2120,28 +2023,38 @@ async function copyBotText(botMsg) {
 .turn-bubble p {
   margin: 0;
   font-size: 14.5px;
-  line-height: 1.6;
+  line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .user-bubble p {
-  color: var(--color-user-bubble-text);
+  color: #ffffff;
+}
+/* 气泡中小文字颜色 */
+.user-bubble .object-card-title,
+.user-bubble .object-card-meta,
+.user-bubble .object-card-price {
+  color: #ffffff !important;
+}
+.user-bubble .status-badge {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border: none;
 }
 
-/* 消息时间戳 */
-.msg-time {
-  margin-top: 4px;
-  font-size: 11px;
-  line-height: 1.2;
-  color: var(--color-text-muted);
-  user-select: none;
+/* ── 对话区主色调整为京东金融蓝 ─────────────────────── */
+.bot-actions .tts-button,
+.bot-actions .copy-button,
+.suggestion-chip,
+.primary-button {
+  background: #276EFF;
+  border-color: #276EFF;
 }
-.user-bubble .msg-time {
-  text-align: right;
-}
-.bot-bubble .msg-time {
-  text-align: left;
+.primary-button:hover {
+  background: #1E5CE6;
+  border-color: #1E5CE6;
+  box-shadow: 0 4px 12px rgba(39, 110, 255, 0.25);
 }
 
 /* 历史消息分隔线 */
