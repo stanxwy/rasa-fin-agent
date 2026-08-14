@@ -124,14 +124,15 @@ def build_history_response(
 
 
 def _session_preview(session: Session) -> str | None:
-    """取会话预览文本：优先最近一条用户文本，回退到首条客服文本。"""
+    """取会话预览文本：返回最后一条消息（用户或客服均可），截断 40 字。"""
     for turn in reversed(session.turns):
-        if turn.user_message and turn.user_message.text:
-            return turn.user_message.text[:40]
-    for turn in session.turns:
-        for bot_msg in turn.bot_messages:
+        # 优先取该 turn 中最后一条客服消息
+        for bot_msg in reversed(turn.bot_messages):
             if bot_msg.text:
                 return bot_msg.text[:40]
+        # 再取该 turn 的用户消息
+        if turn.user_message and turn.user_message.text:
+            return turn.user_message.text[:40]
     return None
 
 

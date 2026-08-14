@@ -205,10 +205,19 @@ class TransactionAPIProvider(BaseAPIProvider):
     provider_id = 'api.transaction'
 
     async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
-        transaction_no = state.focused_object.id
-        data: dict[str, Any] | None = await fetch_transaction(transaction_no)
+        identifier = state.focused_object.id
+        obj_type = state.focused_object.type
+        # 用户发送的是银行账户 → 按账号查询交易流水列表
+        if str(obj_type) == "bank_account":
+            records = await fetch_account_transactions(identifier)
+            if records:
+                text = json.dumps(records, ensure_ascii=False, indent=2)
+                return [KnowledgeChunk(content=f"账户 {identifier} 的交易流水:\n{text}")]
+            return [KnowledgeChunk(content=f"未查询到账户 {identifier} 的交易流水。")]
+        # 默认：按交易号查询单笔交易详情
+        data: dict[str, Any] | None = await fetch_transaction(identifier)
         if data is None:
-            return [KnowledgeChunk(content=f"未查询到交易流水 {transaction_no} 的信息。")]
+            return [KnowledgeChunk(content=f"未查询到交易流水 {identifier} 的信息。")]
         text = json.dumps(data, ensure_ascii=False, indent=2)
         return [KnowledgeChunk(content=f"交易流水信息:\n{text}")]
 

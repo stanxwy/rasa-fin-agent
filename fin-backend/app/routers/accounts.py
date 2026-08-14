@@ -765,6 +765,13 @@ def get_transaction(
         {
             "transaction_status": tx["transaction_status"],
             "amount": str(tx["transaction_amount"]),
+            "transaction_type": tx["transaction_type"],
+            "transaction_at": str(tx["transaction_at"]),
+            "counterparty_name": tx["counterparty_name"],
+            "counterparty_account_no": tx["counterparty_account_no"],
+            "counterparty_bank_name": tx["counterparty_bank_name"],
+            "merchant_name": tx["merchant_name"],
+            "merchant_no": tx["merchant_no"],
             "channel_transaction": serialize_row(channel_txn) if channel_txn else None,
             "reconcile_status": reconcile["process_status"] if reconcile else None,
         },

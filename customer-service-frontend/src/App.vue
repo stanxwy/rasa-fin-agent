@@ -33,9 +33,13 @@ const messagesContainer = ref(null)
 // 金融业务对象数据
 const customerInfo = ref(null)
 const accounts = ref([])
+const bankCards = ref([])
+const creditCards = ref([])
+const depositProducts = ref([])
 const transactions = ref([])
 const wealthProducts = ref([])
 const wealthPositions = ref([])
+const fundProducts = ref([])
 const loanProducts = ref([])
 const creditLimits = ref([])
 const repaymentBills = ref([])
@@ -100,6 +104,14 @@ function fmtAmt(val) {
   const n = Number(val || 0)
   if (!isFinite(n)) return '0.00'
   return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+// 银行卡号脱敏（保留前4后4，中间*）
+function maskCardNo(no) {
+  if (!no) return '-'
+  const s = String(no)
+  if (s.length <= 8) return s
+  return s.slice(0, 4) + ' **** **** ' + s.slice(-4)
 }
 
 // ── 多会话（会话列表）─────────────────────────────────────
@@ -317,6 +329,13 @@ const finApiCustomerDetail = computed(
 const finApiCustomerAccounts = computed(
   () => `/backend/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/accounts`
 )
+const finApiCustomerBankCards = computed(
+  () => `/backend/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/cards`
+)
+const finApiCustomerCreditCards = computed(
+  () => `/backend/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/cards?card_type=credit`
+)
+const finApiAccountProducts = '/backend/api/v1/account-products?account_type=demand_deposit'
 function finApiAccountTransactions(accountNo) {
   return `/backend/api/v1/accounts/${encodeURIComponent(accountNo)}/transactions?page_size=100`
 }
@@ -324,6 +343,8 @@ const finApiWealthProducts = '/backend/api/v1/wealth/products'
 const finApiWealthPositions = computed(
   () => `/backend/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/wealth/positions`
 )
+const finApiFundProducts = '/backend/api/v1/wealth/products?product_type=equity'
+// 基金类产品覆盖 equity/mixed/fixed_income，App 端实际用 refreshObjects 内部合并调用，这里仅保留变量
 const finApiLoanProducts = '/backend/api/v1/loan/products'
 const finApiCreditLimits = computed(
   () => `/backend/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/credit-limits`
@@ -600,6 +621,53 @@ async function refreshObjects(which = 'all') {
           const data = await fetchFin(finApiWealthPositions.value)
           wealthPositions.value = data?.list ?? []
         } catch { wealthPositions.value = [] }
+      })())
+    }
+
+    // ── 银行卡 ──────────────────────────────────────────────
+    if (need('bankcards')) {
+      tasks.push((async () => {
+        try {
+          const data = await fetchFin(finApiCustomerBankCards.value)
+          const list = data?.list ?? []
+          bankCards.value = list.filter(c => String(c.card_type || '').toLowerCase() !== 'credit')
+        } catch { bankCards.value = [] }
+      })())
+    }
+
+    // ── 信用卡 ──────────────────────────────────────────────
+    if (need('creditcards')) {
+      tasks.push((async () => {
+        try {
+          const data = await fetchFin(finApiCustomerCreditCards.value)
+          creditCards.value = data?.list ?? []
+        } catch { creditCards.value = [] }
+      })())
+    }
+
+    // ── 存款产品 ────────────────────────────────────────────
+    if (need('deposits')) {
+      tasks.push((async () => {
+        try {
+          const data = await fetchFin(finApiAccountProducts)
+          depositProducts.value = data?.list ?? []
+        } catch { depositProducts.value = [] }
+      })())
+    }
+
+    // ── 基金产品（equity + mixed + fixed_income 合并） ──────
+    if (need('funds')) {
+      tasks.push((async () => {
+        try {
+          const types = ['equity', 'mixed', 'fixed_income']
+          const reqs = types.map(t =>
+            fetchFin(`/backend/api/v1/wealth/products?product_type=${t}`)
+              .then(r => r?.list ?? [])
+              .catch(() => [])
+          )
+          const results = await Promise.all(reqs)
+          fundProducts.value = results.flat()
+        } catch { fundProducts.value = [] }
       })())
     }
 
@@ -887,9 +955,13 @@ watch(
     if (!value) {
       customerInfo.value = null
       accounts.value = []
+      bankCards.value = []
+      creditCards.value = []
+      depositProducts.value = []
       transactions.value = []
       wealthProducts.value = []
       wealthPositions.value = []
+      fundProducts.value = []
       loanProducts.value = []
       creditLimits.value = []
       repaymentBills.value = []
@@ -1187,6 +1259,54 @@ onUnmounted(() => {})
           </article>
         </div>
 
+        <!-- ── Tab: 银行卡 ────────────────────────────────────────── -->
+        <div v-else-if="activeTab === 'bankcards'" class="sidebar-list">
+          <div v-if="!bankCards.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.bankcards }}</div>
+          <article v-for="c in bankCards" :key="c.card_no" class="sidebar-card clickable"
+            @click="sendSidebarObject('bank_card', c.card_no, (c.card_level ? c.card_level + ' ' : '') + accountProductName(c.account_product_name || '') || BUSINESS_PANEL.CARD_DEFAULTS.bankCardTitle, { type: c.card_type, status: c.card_status, account_no: c.account_no, balance: c.balance_amount })">
+            <div class="card-top">
+              <div class="card-title">{{ (c.card_level ? c.card_level + ' ' : '') + (accountProductName(c.account_product_name) || BUSINESS_PANEL.CARD_DEFAULTS.bankCardTitle) }}</div>
+              <div class="card-amount">{{ currencyName(c.currency_code) }} {{ fmtAmt(c.balance_amount) }}</div>
+            </div>
+            <div class="card-meta">卡号：{{ maskCardNo(c.card_no) }}</div>
+            <div class="card-meta">类型：{{ c.card_type }} · 状态：{{ c.card_status }}</div>
+            <div class="card-meta">绑定账户：{{ c.account_no }}</div>
+            <div class="card-meta">有效期至：{{ c.expired_at || '-' }}</div>
+          </article>
+        </div>
+
+        <!-- ── Tab: 信用卡 ────────────────────────────────────────── -->
+        <div v-else-if="activeTab === 'creditcards'" class="sidebar-list">
+          <div v-if="!creditCards.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.creditcards }}</div>
+          <article v-for="c in creditCards" :key="c.card_no" class="sidebar-card clickable"
+            @click="sendSidebarObject('credit_card', c.card_no, (c.card_level ? c.card_level + ' ' : '') + (c.card_type === 'credit' ? '信用卡' : BUSINESS_PANEL.CARD_DEFAULTS.creditCardTitle), { type: c.card_type, status: c.card_status, account_no: c.account_no })">
+            <div class="card-top">
+              <div class="card-title">{{ (c.card_level ? c.card_level + ' ' : '') + (c.card_type === 'credit' ? '信用卡' : BUSINESS_PANEL.CARD_DEFAULTS.creditCardTitle) }}</div>
+              <div class="card-amount">{{ currencyName(c.currency_code) }} {{ fmtAmt(c.balance_amount) }}</div>
+            </div>
+            <div class="card-meta">卡号：{{ maskCardNo(c.card_no) }}</div>
+            <div class="card-meta">状态：{{ c.card_status }}</div>
+            <div class="card-meta">绑定账户：{{ c.account_no }}</div>
+            <div class="card-meta">有效期至：{{ c.expired_at || '-' }}</div>
+          </article>
+        </div>
+
+        <!-- ── Tab: 存款产品 ──────────────────────────────────────── -->
+        <div v-else-if="activeTab === 'deposits'" class="sidebar-list">
+          <h3 class="section-title">{{ BUSINESS_PANEL.SECTIONS.deposits.products }}</h3>
+          <div v-if="!depositProducts.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.deposits }}</div>
+          <article v-for="d in depositProducts" :key="d.product_code" class="sidebar-card clickable"
+            @click="sendSidebarObject('deposit', d.product_code, d.product_name || BUSINESS_PANEL.CARD_DEFAULTS.depositTitle, { account_type: d.account_type, currency: d.currency_code, status: d.product_status })">
+            <div class="card-top">
+              <div class="card-title">{{ d.product_name || BUSINESS_PANEL.CARD_DEFAULTS.depositTitle }}</div>
+              <div class="card-amount">{{ currencyName(d.currency_code) }}</div>
+            </div>
+            <div class="card-meta">产品代码：{{ d.product_code }}</div>
+            <div class="card-meta">账户类型：{{ d.account_type }}</div>
+            <div class="card-meta">状态：{{ d.product_status }}</div>
+          </article>
+        </div>
+
         <!-- ── Tab: 交易流水 ────────────────────────────────────────── -->
         <div v-else-if="activeTab === 'transactions'" class="sidebar-list">
           <div v-if="!transactions.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.transactions }}</div>
@@ -1246,6 +1366,25 @@ onUnmounted(() => {})
               <div class="card-meta">状态：{{ openStatusName(prod.open_status) }}</div>
             </article>
           </template>
+        </div>
+
+        <!-- ── Tab: 基金产品 ──────────────────────────────────────── -->
+        <div v-else-if="activeTab === 'funds'" class="sidebar-list">
+          <h3 class="section-title">{{ BUSINESS_PANEL.SECTIONS.funds.products }}</h3>
+          <div v-if="!fundProducts.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.funds }}</div>
+          <article v-for="fp in fundProducts" :key="fp.product_code" class="sidebar-card clickable"
+            @click="sendSidebarObject('fund_product', fp.product_code, fp.product_name || wealthName(fp.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.fundProduct, { type: fp.product_type, yield: fp.expected_yield_rate, risk: fp.risk_level?.risk_level_code, status: fp.open_status })">
+            <div class="card-top">
+              <div class="card-title">{{ fp.product_name || wealthName(fp.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.fundProduct }}</div>
+              <div class="card-amount" style="color: #d97706;">
+                {{ fp.expected_yield_rate ? `${(Number(fp.expected_yield_rate) * 100).toFixed(2)}%` : '-' }}
+              </div>
+            </div>
+            <div class="card-meta">产品代码：{{ fp.product_code }}</div>
+            <div class="card-meta">产品类型：{{ wealthTypeName(fp.product_type) }}</div>
+            <div class="card-meta">风险等级：{{ riskName(fp.risk_level?.risk_level_code) || fp.risk_level || '-' }}</div>
+            <div class="card-meta">状态：{{ openStatusName(fp.open_status) }}</div>
+          </article>
         </div>
 
         <!-- ── Tab: 信贷（授信额度 + 贷款产品） ─────────────────────── -->
@@ -2361,8 +2500,11 @@ onUnmounted(() => {})
 }
 
 .tab-button {
-  min-width: 64px;
-  padding-inline: 14px;
+  flex: 1 1 0;
+  min-width: 56px;
+  padding-inline: 6px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .tab-button.active {

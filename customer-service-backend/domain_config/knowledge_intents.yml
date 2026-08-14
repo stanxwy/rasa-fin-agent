@@ -54,6 +54,8 @@ intents:
     provider_ids:
       - api.transaction
     requires_object: transaction
+    accepts_objects:
+      - bank_account
 
   transfer_info:
     id: transfer_info
@@ -61,6 +63,8 @@ intents:
     provider_ids:
       - api.transfer
     requires_object: transfer
+    accepts_objects:
+      - bank_account
 
   interest_rate_policy:
     id: interest_rate_policy

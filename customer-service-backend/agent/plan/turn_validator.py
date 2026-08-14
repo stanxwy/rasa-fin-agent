@@ -118,8 +118,11 @@ class TurnPlanValidator:
             intent_meta = intents[intent]
             required_object = intent_meta.requires_object
             if required_object is not None and (
-                focused_object is None 
-                or focused_object.type != required_object):
+                focused_object is None
+                or (
+                    focused_object.type != required_object
+                    and focused_object.type not in intent_meta.accepts_objects
+                )):
                 return self._reject(ClarifyReason.MISSING_FOCUSED_OBJECT)
 
         return TurnPlanValidationResult(valid=True)

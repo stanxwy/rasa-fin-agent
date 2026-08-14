@@ -51,14 +51,18 @@ export const BUSINESS_PANEL = {
    * refreshKey 传给 refreshObjects()，通常等于 key；也可单独配置
    */
   TABS: [
-    { key: 'customer',      label: '客户', refreshKey: 'customer' },
-    { key: 'accounts',      label: '账户', refreshKey: 'accounts' },
-    { key: 'transactions',  label: '交易', refreshKey: 'transactions' },
-    { key: 'wealth',        label: '理财', refreshKey: 'wealth' },
-    { key: 'loans',         label: '信贷', refreshKey: 'loans' },
-    { key: 'repayments',    label: '还款', refreshKey: 'repayments' },
-    { key: 'overdues',      label: '逾期', refreshKey: 'overdues' },
-    { key: 'notifications', label: '通知', refreshKey: 'notifications' },
+    { key: 'customer',      label: '客户',     refreshKey: 'customer' },
+    { key: 'accounts',      label: '账户',     refreshKey: 'accounts' },
+    { key: 'bankcards',     label: '银行卡',   refreshKey: 'bankcards' },
+    { key: 'creditcards',   label: '信用卡',   refreshKey: 'creditcards' },
+    { key: 'deposits',      label: '存款',     refreshKey: 'deposits' },
+    { key: 'transactions',  label: '交易',     refreshKey: 'transactions' },
+    { key: 'wealth',        label: '理财',     refreshKey: 'wealth' },
+    { key: 'funds',         label: '基金',     refreshKey: 'funds' },
+    { key: 'loans',         label: '信贷',     refreshKey: 'loans' },
+    { key: 'repayments',    label: '还款',     refreshKey: 'repayments' },
+    { key: 'overdues',      label: '逾期',     refreshKey: 'overdues' },
+    { key: 'notifications', label: '通知',     refreshKey: 'notifications' },
   ],
   /**
    * 空状态提示（无数据时展示）
@@ -67,8 +71,12 @@ export const BUSINESS_PANEL = {
   EMPTY: {
     customer:      '暂无客户数据',
     accounts:      '暂无账户数据',
+    bankcards:     '暂无银行卡',
+    creditcards:   '暂无信用卡',
+    deposits:      '暂无存款产品',
     transactions:  '暂无交易流水',
     wealth:        '暂无理财数据',
+    funds:         '暂无基金产品',
     loans:         '暂无信贷数据',
     repayments:    '暂无还款账单',
     overdues:      '暂无逾期记录',
@@ -80,11 +88,17 @@ export const BUSINESS_PANEL = {
   SECTIONS: {
     wealth: {
       positions: '我的持仓',
-      products:  '在售产品',
+      products:  '在售理财',
     },
     loans: {
       limits:   '授信额度',
       products: '贷款产品',
+    },
+    funds: {
+      products: '在售基金',
+    },
+    deposits: {
+      products: '存款产品',
     },
   },
   /**
@@ -93,9 +107,13 @@ export const BUSINESS_PANEL = {
   CARD_DEFAULTS: {
     customerTitle:     '客户信息',
     accountTitle:      '银行账户',
+    bankCardTitle:     '银行卡',
+    creditCardTitle:   '信用卡',
+    depositTitle:      '存款产品',
     transactionTitle:  '交易',
     wealthPosition:    '理财产品',
     wealthProduct:     '理财产品',
+    fundProduct:       '基金产品',
     loanLimit:         '授信额度',
     loanProduct:       '贷款产品',
     repaymentBill:     '还款账单',

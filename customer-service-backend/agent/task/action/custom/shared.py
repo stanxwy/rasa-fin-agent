@@ -261,3 +261,78 @@ async def fetch_account_transactions(
 async def fetch_transfer_records(account_no: str) -> list[dict] | None:
     """查询账户的转账记录，复用交易明细接口并按 transaction_type=transfer 过滤。"""
     return await fetch_account_transactions(account_no, transaction_type="transfer")
+
+
+# ------------------------------------------------------------------ #
+#  理财持仓                                                           #
+# ------------------------------------------------------------------ #
+
+async def fetch_customer_wealth_positions(customer_no: str) -> list[dict] | None:
+    try:
+        r = await _get(
+            f"{_base_url()}/api/v1/customers/{quote(customer_no)}/wealth/positions"
+        )
+        return _extract_list(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_customer_wealth_positions failed: {e}")
+        return None
+
+
+# ------------------------------------------------------------------ #
+#  授信额度                                                           #
+# ------------------------------------------------------------------ #
+
+async def fetch_customer_credit_limits(customer_no: str) -> list[dict] | None:
+    try:
+        r = await _get(
+            f"{_base_url()}/api/v1/customers/{quote(customer_no)}/credit-limits"
+        )
+        return _extract_list(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_customer_credit_limits failed: {e}")
+        return None
+
+
+# ------------------------------------------------------------------ #
+#  还款账单                                                           #
+# ------------------------------------------------------------------ #
+
+async def fetch_repayment_bills(customer_no: str) -> list[dict] | None:
+    try:
+        r = await _get(
+            f"{_base_url()}/api/v1/repayment/bills?customer_no={quote(customer_no)}&page_size=100"
+        )
+        return _extract_list(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_repayment_bills failed: {e}")
+        return None
+
+
+# ------------------------------------------------------------------ #
+#  逾期记录                                                           #
+# ------------------------------------------------------------------ #
+
+async def fetch_overdues(customer_no: str) -> list[dict] | None:
+    try:
+        r = await _get(
+            f"{_base_url()}/api/v1/overdues?customer_no={quote(customer_no)}&page_size=100"
+        )
+        return _extract_list(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_overdues failed: {e}")
+        return None
+
+
+# ------------------------------------------------------------------ #
+#  客户通知                                                           #
+# ------------------------------------------------------------------ #
+
+async def fetch_customer_notifications(customer_no: str) -> list[dict] | None:
+    try:
+        r = await _get(
+            f"{_base_url()}/api/v1/customers/{quote(customer_no)}/notifications?page_size=100"
+        )
+        return _extract_list(r.json())
+    except Exception as e:
+        logger.warning(f"fetch_customer_notifications failed: {e}")
+        return None
