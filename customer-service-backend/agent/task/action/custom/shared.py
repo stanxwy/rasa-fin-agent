@@ -283,16 +283,24 @@ async def fetch_customer_status_history(
 async def submit_customer_identity(
     customer_no: str,
     identity_no: str,
-    identity_name: str,
+    legal_name: str,
+    identity_type: str = "id_card",
+    legal_representative: str | None = None,
+    identity_valid_from: str | None = None,
     identity_valid_to: str | None = None,
 ) -> dict | None:
     """POST /customers/{no}/identities — 提交实名认证信息。"""
     try:
         payload = {
             "request_no": _make_idempotent_key(),
+            "identity_type": identity_type,
             "identity_no": identity_no,
-            "identity_name": identity_name,
+            "legal_name": legal_name,
         }
+        if legal_representative:
+            payload["legal_representative"] = legal_representative
+        if identity_valid_from:
+            payload["identity_valid_from"] = identity_valid_from
         if identity_valid_to:
             payload["identity_valid_to"] = identity_valid_to
         r = await _post(
@@ -331,12 +339,24 @@ async def add_customer_contact(
 
 async def submit_customer_kyc(
     customer_no: str,
-    kyc_data: dict,
+    occupation: str,
+    industry: str,
+    annual_income_amount: float,
+    income_currency_code: str,
+    fund_source: str,
+    employment_status: str,
 ) -> dict | None:
     """POST /customers/{no}/kyc — 提交 KYC 信息。"""
     try:
-        payload = {"request_no": _make_idempotent_key()}
-        payload.update(kyc_data)
+        payload = {
+            "request_no": _make_idempotent_key(),
+            "occupation": occupation,
+            "industry": industry,
+            "annual_income_amount": annual_income_amount,
+            "income_currency_code": income_currency_code,
+            "fund_source": fund_source,
+            "employment_status": employment_status,
+        }
         r = await _post(
             f"{_base_url()}/api/v1/customers/{quote(customer_no)}/kyc", payload
         )
@@ -348,16 +368,23 @@ async def submit_customer_kyc(
 
 async def submit_customer_risk_assessment(
     customer_no: str,
-    risk_level: str,
-    assessment_result: str,
+    assessment_type: str,
+    assessment_score: int,
+    valid_from: str,
+    valid_to: str,
+    adjust_reason: str | None = None,
 ) -> dict | None:
     """POST /customers/{no}/risk-assessments — 提交客户风险测评。"""
     try:
         payload = {
             "request_no": _make_idempotent_key(),
-            "risk_level": risk_level,
-            "assessment_result": assessment_result,
+            "assessment_type": assessment_type,
+            "assessment_score": assessment_score,
+            "valid_from": valid_from,
+            "valid_to": valid_to,
         }
+        if adjust_reason:
+            payload["adjust_reason"] = adjust_reason
         r = await _post(
             f"{_base_url()}/api/v1/customers/{quote(customer_no)}/risk-assessments",
             payload,
@@ -526,12 +553,21 @@ async def create_account(
     branch_code: str,
     **extra,
 ) -> dict | None:
+    """POST /accounts — 开立银行账户。
+
+    后端 AccountCreateRequest 要求: request_no, customer_no, product_code,
+    currency_code, branch_code, channel_code, open_amount(可选)。
+    customer_no 从 contextvar 获取，channel_code 默认 MOBILE_BANK。
+    """
     try:
+        customer_no = _current_customer_no.get() or ""
         payload = {
             "request_no": _make_idempotent_key(),
-            "account_type": account_type,
-            "currency": currency,
+            "customer_no": customer_no,
+            "product_code": account_type,
+            "currency_code": currency,
             "branch_code": branch_code,
+            "channel_code": extra.pop("channel_code", "MOBILE_BANK"),
         }
         payload.update({k: v for k, v in extra.items() if v is not None})
         r = await _post(f"{_base_url()}/api/v1/accounts", payload)
@@ -544,16 +580,15 @@ async def create_account(
 async def create_bank_card(
     account_no: str,
     card_type: str,
-    card_name: str | None = None,
+    card_level: str = "standard",
     **extra,
 ) -> dict | None:
     try:
         payload = {
             "request_no": _make_idempotent_key(),
             "card_type": card_type,
+            "card_level": card_level,
         }
-        if card_name:
-            payload["card_name"] = card_name
         payload.update({k: v for k, v in extra.items() if v is not None})
         r = await _post(
             f"{_base_url()}/api/v1/accounts/{quote(account_no)}/cards",
@@ -838,16 +873,19 @@ async def fetch_fund_product(product_code: str) -> dict | None:
 
 async def purchase_wealth(
     product_code: str,
-    amount: float | None = None,
-    share: float | None = None,
+    account_no: str,
+    purchase_amount: float,
 ) -> dict | None:
     """POST /wealth/orders/purchase — 发起理财申购。"""
     try:
-        payload = {"request_no": _make_idempotent_key(), "product_code": product_code}
-        if amount is not None:
-            payload["purchase_amount"] = amount
-        if share is not None:
-            payload["purchase_share"] = share
+        customer_no = _current_customer_no.get() or ""
+        payload = {
+            "request_no": _make_idempotent_key(),
+            "customer_no": customer_no,
+            "account_no": account_no,
+            "product_code": product_code,
+            "purchase_amount": purchase_amount,
+        }
         r = await _post(
             f"{_base_url()}/api/v1/wealth/orders/purchase", payload
         )
@@ -858,17 +896,20 @@ async def purchase_wealth(
 
 
 async def redeem_wealth(
-    product_code: str,
-    share: float | None = None,
-    amount: float | None = None,
+    account_no: str,
+    position_id: int,
+    redeem_share: float,
 ) -> dict | None:
     """POST /wealth/orders/redeem — 发起理财赎回。"""
     try:
-        payload = {"request_no": _make_idempotent_key(), "product_code": product_code}
-        if share is not None:
-            payload["redeem_share"] = share
-        if amount is not None:
-            payload["redeem_amount"] = amount
+        customer_no = _current_customer_no.get() or ""
+        payload = {
+            "request_no": _make_idempotent_key(),
+            "customer_no": customer_no,
+            "account_no": account_no,
+            "position_id": position_id,
+            "redeem_share": redeem_share,
+        }
         r = await _post(
             f"{_base_url()}/api/v1/wealth/orders/redeem", payload
         )
@@ -878,12 +919,25 @@ async def redeem_wealth(
         return None
 
 
-async def confirm_wealth_order(order_no: str) -> dict | None:
+async def confirm_wealth_order(
+    order_no: str,
+    confirmed_amount: float,
+    confirmed_share: float,
+    confirmed_nav: float,
+    confirmed_date: str,
+) -> dict | None:
     """POST /wealth/orders/{no}/confirm — 确认理财订单。"""
     try:
+        payload = {
+            "request_no": _make_idempotent_key(),
+            "confirmed_amount": confirmed_amount,
+            "confirmed_share": confirmed_share,
+            "confirmed_nav": confirmed_nav,
+            "confirmed_date": confirmed_date,
+        }
         r = await _post(
             f"{_base_url()}/api/v1/wealth/orders/{quote(order_no)}/confirm",
-            {"request_no": _make_idempotent_key()},
+            payload,
         )
         return _extract_data(r.json())
     except Exception as e:
@@ -891,12 +945,16 @@ async def confirm_wealth_order(order_no: str) -> dict | None:
         return None
 
 
-async def cancel_wealth_order(order_no: str) -> dict | None:
+async def cancel_wealth_order(order_no: str, cancel_reason: str) -> dict | None:
     """POST /wealth/orders/{no}/cancel — 撤销理财订单。"""
     try:
+        payload = {
+            "request_no": _make_idempotent_key(),
+            "cancel_reason": cancel_reason,
+        }
         r = await _post(
             f"{_base_url()}/api/v1/wealth/orders/{quote(order_no)}/cancel",
-            {"request_no": _make_idempotent_key()},
+            payload,
         )
         return _extract_data(r.json())
     except Exception as e:
@@ -983,17 +1041,17 @@ async def fetch_loan_product(product_code: str) -> dict | None:
 
 async def submit_credit_application(
     product_code: str,
-    amount: float,
-    term_months: int,
+    apply_limit_amount: float,
     **extra,
 ) -> dict | None:
     """POST /credit/applications — 提交授信申请。"""
     try:
+        customer_no = _current_customer_no.get() or ""
         payload = {
             "request_no": _make_idempotent_key(),
+            "customer_no": customer_no,
             "product_code": product_code,
-            "amount": amount,
-            "term_months": term_months,
+            "apply_limit_amount": apply_limit_amount,
         }
         payload.update({k: v for k, v in extra.items() if v is not None})
         r = await _post(f"{_base_url()}/api/v1/credit/applications", payload)
@@ -1026,18 +1084,22 @@ async def fetch_customer_credit_limits(customer_no: str) -> list[dict] | None:
 
 
 async def submit_loan_application(
-    product_code: str,
-    amount: float,
-    term_months: int,
+    limit_no: str,
+    apply_amount: float,
+    apply_term_months: int,
+    repayment_method: str = "equal_installment",
     **extra,
 ) -> dict | None:
     """POST /loan/applications — 提交贷款申请。"""
     try:
+        customer_no = _current_customer_no.get() or ""
         payload = {
             "request_no": _make_idempotent_key(),
-            "product_code": product_code,
-            "amount": amount,
-            "term_months": term_months,
+            "customer_no": customer_no,
+            "limit_no": limit_no,
+            "apply_amount": apply_amount,
+            "apply_term_months": apply_term_months,
+            "repayment_method": repayment_method,
         }
         payload.update({k: v for k, v in extra.items() if v is not None})
         r = await _post(f"{_base_url()}/api/v1/loan/applications", payload)
@@ -1069,12 +1131,18 @@ async def fetch_loan_contract(contract_no: str) -> dict | None:
         return None
 
 
-async def disburse_loan(contract_no: str, amount: float | None = None) -> dict | None:
+async def disburse_loan(
+    contract_no: str,
+    account_no: str,
+    disbursement_amount: float,
+) -> dict | None:
     """POST /loan/contracts/{no}/disbursements — 发起贷款放款。"""
     try:
-        payload = {"request_no": _make_idempotent_key()}
-        if amount is not None:
-            payload["disburse_amount"] = amount
+        payload = {
+            "request_no": _make_idempotent_key(),
+            "account_no": account_no,
+            "disbursement_amount": disbursement_amount,
+        }
         r = await _post(
             f"{_base_url()}/api/v1/loan/contracts/{quote(contract_no)}/disbursements",
             payload,
@@ -1212,14 +1280,22 @@ async def fetch_repayment_detail(repayment_no: str) -> dict | None:
 
 async def create_repayment_authorization(
     contract_no: str,
-    auto_repay: bool = True,
+    account_no: str,
+    authorization_type: str,
+    valid_from: str,
+    valid_to: str,
 ) -> dict | None:
     """POST /repayment/authorizations — 创建自动还款授权。"""
     try:
+        customer_no = _current_customer_no.get() or ""
         payload = {
             "request_no": _make_idempotent_key(),
+            "customer_no": customer_no,
             "contract_no": contract_no,
-            "auto_repay": auto_repay,
+            "account_no": account_no,
+            "authorization_type": authorization_type,
+            "valid_from": valid_from,
+            "valid_to": valid_to,
         }
         r = await _post(
             f"{_base_url()}/api/v1/repayment/authorizations", payload
@@ -1231,17 +1307,19 @@ async def create_repayment_authorization(
 
 
 async def submit_repayment(
-    contract_no: str,
-    amount: float,
-    repayment_method: str = "bank_card",
+    bill_no: str,
+    account_no: str,
+    repayment_amount: float,
+    repayment_type: str = "normal",
 ) -> dict | None:
     """POST /repayments — 发起正常还款。"""
     try:
         payload = {
             "request_no": _make_idempotent_key(),
-            "contract_no": contract_no,
-            "amount": amount,
-            "repayment_method": repayment_method,
+            "bill_no": bill_no,
+            "account_no": account_no,
+            "repayment_amount": repayment_amount,
+            "repayment_type": repayment_type,
         }
         r = await _post(f"{_base_url()}/api/v1/repayments", payload)
         return _extract_data(r.json())
@@ -1262,19 +1340,20 @@ async def fetch_overdues(customer_no: str) -> list[dict] | None:
 
 
 async def submit_fee_reduction(
-    contract_no: str,
+    bill_no: str,
+    reduction_type: str,
+    apply_amount: float,
     reason: str,
-    amount: float | None = None,
 ) -> dict | None:
     """POST /fee-reductions — 发起费用减免申请。"""
     try:
         payload = {
             "request_no": _make_idempotent_key(),
-            "contract_no": contract_no,
+            "bill_no": bill_no,
+            "reduction_type": reduction_type,
+            "apply_amount": apply_amount,
             "reason": reason,
         }
-        if amount is not None:
-            payload["reduction_amount"] = amount
         r = await _post(f"{_base_url()}/api/v1/fee-reductions", payload)
         return _extract_data(r.json())
     except Exception as e:
@@ -1349,21 +1428,24 @@ async def approve_fee_reduction(
 
 async def report_risk_event(
     event_type: str,
-    event_level: str,
+    risk_score: int,
     customer_no: str | None = None,
-    contract_no: str | None = None,
+    related_type: str = "customer",
+    related_id: int | None = None,
     **extra,
 ) -> dict | None:
     try:
+        if customer_no is None:
+            customer_no = _current_customer_no.get() or ""
         payload = {
             "request_no": _make_idempotent_key(),
+            "customer_no": customer_no,
+            "related_type": related_type,
             "event_type": event_type,
-            "event_level": event_level,
+            "risk_score": risk_score,
         }
-        if customer_no:
-            payload["customer_no"] = customer_no
-        if contract_no:
-            payload["contract_no"] = contract_no
+        if related_id is not None:
+            payload["related_id"] = related_id
         payload.update({k: v for k, v in extra.items() if v is not None})
         r = await _post(f"{_base_url()}/api/v1/risk/events", payload)
         return _extract_data(r.json())
@@ -1426,17 +1508,25 @@ async def fetch_blacklists(
 
 
 async def add_blacklist(
-    blacklist_type: str,
-    customer_no: str | None = None,
+    subject_type: str,
+    subject_value: str,
+    risk_level_code: str,
+    reason: str,
+    effective_from: str,
+    effective_to: str | None = None,
     **extra,
 ) -> dict | None:
     try:
         payload = {
             "request_no": _make_idempotent_key(),
-            "blacklist_type": blacklist_type,
+            "subject_type": subject_type,
+            "subject_value": subject_value,
+            "risk_level_code": risk_level_code,
+            "reason": reason,
+            "effective_from": effective_from,
         }
-        if customer_no:
-            payload["customer_no"] = customer_no
+        if effective_to:
+            payload["effective_to"] = effective_to
         payload.update({k: v for k, v in extra.items() if v is not None})
         r = await _post(f"{_base_url()}/api/v1/blacklists", payload)
         return _extract_data(r.json())
@@ -1503,15 +1593,17 @@ async def fetch_aml_report(report_no: str) -> dict | None:
 # ====================================================================== #
 
 async def create_collection_case(
-    customer_no: str,
-    case_type: str,
+    overdue_no: str,
+    collector_no: str,
+    collection_stage: str,
     **extra,
 ) -> dict | None:
     try:
         payload = {
             "request_no": _make_idempotent_key(),
-            "customer_no": customer_no,
-            "case_type": case_type,
+            "overdue_no": overdue_no,
+            "collector_no": collector_no,
+            "collection_stage": collection_stage,
         }
         payload.update({k: v for k, v in extra.items() if v is not None})
         r = await _post(f"{_base_url()}/api/v1/collection/cases", payload)
@@ -1535,12 +1627,14 @@ async def fetch_collection_case(case_no: str) -> dict | None:
 async def add_collection_action(
     case_no: str,
     action_type: str,
+    action_result: str,
     **extra,
 ) -> dict | None:
     try:
         payload = {
             "request_no": _make_idempotent_key(),
             "action_type": action_type,
+            "action_result": action_result,
         }
         payload.update({k: v for k, v in extra.items() if v is not None})
         r = await _post(
@@ -1818,17 +1912,26 @@ async def fetch_customer_notifications(customer_no: str) -> list[dict] | None:
 
 async def send_notification(
     customer_no: str,
-    notification_type: str,
-    content: str,
+    message_type: str,
+    send_channel: str,
+    related_type: str,
+    message_title: str,
+    message_content: str,
+    related_id: int | None = None,
 ) -> dict | None:
     """POST /notifications — 发送业务通知。"""
     try:
         payload = {
             "request_no": _make_idempotent_key(),
             "customer_no": customer_no,
-            "notification_type": notification_type,
-            "content": content,
+            "message_type": message_type,
+            "send_channel": send_channel,
+            "related_type": related_type,
+            "message_title": message_title,
+            "message_content": message_content,
         }
+        if related_id is not None:
+            payload["related_id"] = related_id
         r = await _post(f"{_base_url()}/api/v1/notifications", payload)
         return _extract_data(r.json())
     except Exception as e:
@@ -1839,7 +1942,10 @@ async def send_notification(
 async def create_support_ticket(
     customer_no: str,
     ticket_type: str,
-    content: str,
+    ticket_title: str,
+    ticket_content: str,
+    related_type: str = "none",
+    related_id: int | None = None,
 ) -> dict | None:
     """POST /support/tickets — 创建客服工单。"""
     try:
@@ -1847,8 +1953,12 @@ async def create_support_ticket(
             "request_no": _make_idempotent_key(),
             "customer_no": customer_no,
             "ticket_type": ticket_type,
-            "content": content,
+            "ticket_title": ticket_title,
+            "ticket_content": ticket_content,
+            "related_type": related_type,
         }
+        if related_id is not None:
+            payload["related_id"] = related_id
         r = await _post(f"{_base_url()}/api/v1/support/tickets", payload)
         return _extract_data(r.json())
     except Exception as e:
@@ -1858,12 +1968,20 @@ async def create_support_ticket(
 
 async def create_workflow_instance(
     workflow_type: str,
+    related_type: str,
+    related_id: int,
+    initiator_type: str,
+    initiator_no: str,
     **extra,
 ) -> dict | None:
     try:
         payload = {
             "request_no": _make_idempotent_key(),
             "workflow_type": workflow_type,
+            "related_type": related_type,
+            "related_id": related_id,
+            "initiator_type": initiator_type,
+            "initiator_no": initiator_no,
         }
         payload.update({k: v for k, v in extra.items() if v is not None})
         r = await _post(

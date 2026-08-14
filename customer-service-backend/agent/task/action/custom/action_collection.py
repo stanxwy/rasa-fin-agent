@@ -15,17 +15,24 @@ from .shared import (
 logger = logging.getLogger(__name__)
 
 
+def _slots(state: DialogueState) -> dict[str, Any]:
+    return state.active_task.slots if state.active_task else {}
+
+
 class ActionCreateCollectionCase(Action):
     name = "action_create_collection_case"
 
     async def run(self, state: DialogueState, action_kwargs: dict[str, Any]) -> ActionResult:
         token = set_current_customer_no(state.sender_id)
         try:
-            customer_no = action_kwargs.get("customer_no", "")
-            case_type = action_kwargs.get("case_type", "overdue")
+            s = _slots(state)
+            overdue_no = s.get("overdue_no", s.get("customer_no", action_kwargs.get("overdue_no", state.sender_id)))
+            collector_no = s.get("collector_no", action_kwargs.get("collector_no", ""))
+            collection_stage = s.get("collection_stage", s.get("case_type", action_kwargs.get("collection_stage", "overdue")))
             result = await create_collection_case(
-                customer_no=customer_no,
-                case_type=case_type,
+                overdue_no=overdue_no,
+                collector_no=collector_no,
+                collection_stage=collection_stage,
             )
             if result:
                 return ActionResult(messages=[BotMessage(text="催收案件创建成功")])
@@ -44,11 +51,14 @@ class ActionAddCollectionAction(Action):
     async def run(self, state: DialogueState, action_kwargs: dict[str, Any]) -> ActionResult:
         token = set_current_customer_no(state.sender_id)
         try:
-            case_no = action_kwargs.get("case_no", "")
-            action_type = action_kwargs.get("action_type", "phone_call")
+            s = _slots(state)
+            case_no = s.get("case_no", action_kwargs.get("case_no", ""))
+            action_type = s.get("collection_action_type", s.get("action_type", action_kwargs.get("action_type", "phone_call")))
+            action_result = s.get("action_result", action_kwargs.get("action_result", "pending"))
             result = await add_collection_action(
                 case_no=case_no,
                 action_type=action_type,
+                action_result=action_result,
             )
             if result:
                 return ActionResult(messages=[BotMessage(text="催收行动添加成功")])

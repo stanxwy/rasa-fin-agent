@@ -56,20 +56,20 @@ def register_custom_actions(action_runner: ActionRunner):
 
         # Skip sub-packages (only register actions from flat modules)
         if is_pkg:
-            logger.info(f"Skipping sub-package: {module_name}")
+            # logger.info(f"Skipping sub-package: {module_name}")
             continue
 
         module = importlib.import_module(module_name)
         for _, obj in inspect.getmembers(module, inspect.isclass):
-            logger.info(f"Inspecting class {obj.__name__} in module {module_name}")
+            # logger.info(f"Inspecting class {obj.__name__} in module {module_name}")
             if not issubclass(obj, Action) or obj is Action:
-                logger.info(f"Skipping non-Action class {obj.__name__} in module {module_name}")
+                # logger.info(f"Skipping non-Action class {obj.__name__} in module {module_name}")
                 continue
 
             # Only register classes defined in this module
             # Prevents re-registering actions imported across modules
             if obj.__module__ != module.__name__:
-                logger.info(f"Skipping imported class {obj.__name__} from module {obj.__module__}")
+                # logger.info(f"Skipping imported class {obj.__name__} from module {obj.__module__}")
                 continue
 
             # Check for required Action attributes

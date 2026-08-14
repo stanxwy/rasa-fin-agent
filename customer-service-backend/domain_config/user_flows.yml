@@ -1,21 +1,1077 @@
-slots: {}
+# ====================================================================== #
+#  Slots — 全局槽位定义                                                     #
+# ====================================================================== #
+slots:
+  # --- 客户 ---
+  customer_type:
+    type: string
+    label: 客户类型
+    description: personal 或 enterprise
+  customer_name:
+    type: string
+    label: 客户名称
+    description: 个人姓名或企业名称
+  branch_code:
+    type: string
+    label: 机构编码
+    description: 开户机构编码
+  identity_no:
+    type: string
+    label: 证件号码
+    description: 身份证号或统一社会信用代码
+  identity_name:
+    type: string
+    label: 证件姓名
+    description: 证件上的姓名
+  risk_level:
+    type: string
+    label: 风险等级
+    description: 风险测评结果等级（如 R1、R2、R3、R4、R5）
+  assessment_result:
+    type: string
+    label: 测评结果
+    description: 风险测评详细结果描述
+  contact_type:
+    type: string
+    label: 联系方式类型
+    description: mobile / email / address
+  contact_value:
+    type: string
+    label: 联系方式
+    description: 手机号 / 邮箱 / 地址
+  kyc_data:
+    type: string
+    label: KYC信息
+    description: 职业年收入投资经验等KYC信息
 
+  # --- 账户 ---
+  account_type:
+    type: string
+    label: 账户类型
+    description: demand_deposit / time_deposit / savings 等
+  currency:
+    type: string
+    label: 币种
+    description: CNY / USD / EUR 等
+  account_no:
+    type: string
+    label: 账户号
+    description: 银行账户号
+  card_type:
+    type: string
+    label: 卡类型
+    description: debit / credit
+  card_name:
+    type: string
+    label: 卡名称
+    description: 银行卡名称
+
+  # --- 理财 ---
+  product_code:
+    type: string
+    label: 产品编码
+    description: 理财产品编码
+  purchase_amount:
+    type: number
+    label: 申购金额
+    description: 申购金额（元）
+  redeem_share:
+    type: number
+    label: 赎回份额
+    description: 赎回份额
+  order_no:
+    type: string
+    label: 订单号
+    description: 理财订单号
+
+  # --- 信贷 ---
+  loan_amount:
+    type: number
+    label: 申请金额
+    description: 贷款/授信申请金额
+  term_months:
+    type: integer
+    label: 期限月数
+    description: 贷款期限（月）
+  contract_no:
+    type: string
+    label: 合同号
+    description: 贷款合同号
+
+  # --- 还款 ---
+  repayment_amount:
+    type: number
+    label: 还款金额
+    description: 还款金额（元）
+  repayment_method:
+    type: string
+    label: 还款方式
+    description: bank_card / alipay / wechat
+  auto_repay:
+    type: boolean
+    label: 自动还款
+    description: 是否开启自动还款
+  fee_reduction_reason:
+    type: string
+    label: 减免原因
+    description: 费用减免原因说明
+  fee_reduction_amount:
+    type: number
+    label: 减免金额
+    description: 申请减免金额
+
+  # --- 风险 ---
+  event_type:
+    type: string
+    label: 事件类型
+    description: 风险事件类型
+  event_level:
+    type: string
+    label: 事件级别
+    description: low / medium / high
+  blacklist_type:
+    type: string
+    label: 黑名单类型
+    description: transaction / customer 等
+
+  # --- 催收 ---
+  case_type:
+    type: string
+    label: 案件类型
+    description: 催收案件类型
+  case_no:
+    type: string
+    label: 案件号
+    description: 催收案件号
+  collection_action_type:
+    type: string
+    label: 催收动作类型
+    description: phone_call / sms / visit / letter 等
+
+  # --- 运营 ---
+  ticket_type:
+    type: string
+    label: 工单类型
+    description: complaint / consultation / suggestion
+  ticket_content:
+    type: string
+    label: 工单内容
+    description: 工单详细内容
+  notification_type:
+    type: string
+    label: 通知类型
+    description: system / transaction / marketing
+  notification_content:
+    type: string
+    label: 通知内容
+    description: 通知正文
+  workflow_type:
+    type: string
+    label: 工作流类型
+    description: 工作流类型编码
+
+# ====================================================================== #
+#  Flows — 业务任务流程                                                     #
+# ====================================================================== #
 flows:
   onboarding:
     name: 欢迎引导
-    description: 在聊天窗口初次打开时欢迎用户，并介绍助手可处理的金融服务。这个 flow 通常由系统主动触发。
+    description: 在聊天窗口初次打开时欢迎用户，并介绍助手可处理的金融服务。
     steps:
       - id: start
         type: start
         next: respond
-
       - id: respond
         type: action
         action: action_response
         args:
-          text: "你好，这里是 Atguigu 金融助手。我可以帮你查询银行账户、银行卡、信用卡、存款、贷款、理财产品、基金产品、交易流水、转账记录等信息。"
+          text: "你好，这里是 Atguigu 金融助手。我可以帮你查询银行账户、银行卡、信用卡、存款、贷款、理财产品、基金产品、交易流水、转账记录等信息，也可以帮你办理开户、理财申购赎回、贷款申请、还款等业务。"
         next: end
+      - id: end
+        type: end
+        next: []
 
+  # ======================================================== #
+  #  customers — 客户接口                                     #
+  # ======================================================== #
+
+  create_customer:
+    name: 创建客户
+    description: 创建个人或企业客户账户
+    steps:
+      - id: start
+        type: start
+        next: collect_customer_type
+      - id: collect_customer_type
+        type: collect
+        slot_name: customer_type
+        response:
+          mode: static
+          text: "请问您要创建个人客户还是企业客户？"
+        next: collect_customer_name
+      - id: collect_customer_name
+        type: collect
+        slot_name: customer_name
+        response:
+          mode: static
+          text: "请提供客户名称（个人姓名或企业名称）。"
+        next: collect_branch_code
+      - id: collect_branch_code
+        type: collect
+        slot_name: branch_code
+        response:
+          mode: static
+          text: "请提供开户机构编码。"
+        next: action
+      - id: action
+        type: action
+        action: action_create_customer
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "客户创建流程已完成。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  submit_identity:
+    name: 实名认证
+    description: 提交客户实名认证信息
+    steps:
+      - id: start
+        type: start
+        next: collect_identity_no
+      - id: collect_identity_no
+        type: collect
+        slot_name: identity_no
+        response:
+          mode: static
+          text: "请提供您的证件号码（身份证号或统一社会信用代码）。"
+        next: collect_identity_name
+      - id: collect_identity_name
+        type: collect
+        slot_name: identity_name
+        response:
+          mode: static
+          text: "请提供证件上的姓名。"
+        next: action
+      - id: action
+        type: action
+        action: action_submit_identity
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "实名认证信息已提交，请等待审核。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  submit_kyc:
+    name: KYC信息提交
+    description: 提交客户KYC信息
+    steps:
+      - id: start
+        type: start
+        next: collect_kyc_data
+      - id: collect_kyc_data
+        type: collect
+        slot_name: kyc_data
+        response:
+          mode: static
+          text: "请提供您的KYC信息（职业、年收入、投资经验等）。"
+        next: action
+      - id: action
+        type: action
+        action: action_submit_kyc
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "KYC信息已提交，请等待审核。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  submit_risk_assessment:
+    name: 风险测评
+    description: 提交客户风险测评结果
+    steps:
+      - id: start
+        type: start
+        next: collect_risk_level
+      - id: collect_risk_level
+        type: collect
+        slot_name: risk_level
+        response:
+          mode: static
+          text: "请提供您的风险测评等级（R1保守型、R2稳健型、R3平衡型、R4成长型、R5进取型）。"
+        next: collect_assessment_result
+      - id: collect_assessment_result
+        type: collect
+        slot_name: assessment_result
+        response:
+          mode: static
+          text: "请提供风险测评的详细结果描述。"
+        next: action
+      - id: action
+        type: action
+        action: action_submit_risk_assessment
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "风险测评结果已提交。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  add_contact:
+    name: 添加联系方式
+    description: 为客户新增联系方式
+    steps:
+      - id: start
+        type: start
+        next: collect_contact_type
+      - id: collect_contact_type
+        type: collect
+        slot_name: contact_type
+        response:
+          mode: static
+          text: "请提供联系方式类型（mobile手机、email邮箱、address地址）。"
+        next: collect_contact_value
+      - id: collect_contact_value
+        type: collect
+        slot_name: contact_value
+        response:
+          mode: static
+          text: "请提供具体的联系方式内容。"
+        next: action
+      - id: action
+        type: action
+        action: action_add_contact
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "联系方式已添加成功。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  # ======================================================== #
+  #  accounts — 账户与交易接口                                #
+  # ======================================================== #
+
+  create_account:
+    name: 开立账户
+    description: 为客户开立银行账户
+    steps:
+      - id: start
+        type: start
+        next: collect_account_type
+      - id: collect_account_type
+        type: collect
+        slot_name: account_type
+        response:
+          mode: static
+          text: "请问您要开立哪种类型的账户？（demand_deposit活期、time_deposit定期、savings储蓄）"
+        next: collect_currency
+      - id: collect_currency
+        type: collect
+        slot_name: currency
+        response:
+          mode: static
+          text: "请选择币种（CNY人民币、USD美元、EUR欧元等），默认为CNY。"
+        next: action
+      - id: action
+        type: action
+        action: action_create_account
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "账户开立流程已完成。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  create_bank_card:
+    name: 办理银行卡
+    description: 为已有账户办理银行卡
+    steps:
+      - id: start
+        type: start
+        next: collect_account_no
+      - id: collect_account_no
+        type: collect
+        slot_name: account_no
+        response:
+          mode: static
+          text: "请提供要绑定的银行账户号。"
+        next: collect_card_type
+      - id: collect_card_type
+        type: collect
+        slot_name: card_type
+        response:
+          mode: static
+          text: "请问要办理借记卡（debit）还是信用卡（credit）？"
+        next: action
+      - id: action
+        type: action
+        action: action_create_bank_card
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "银行卡办理流程已完成。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  # ======================================================== #
+  #  wealth — 理财接口                                        #
+  # ======================================================== #
+
+  purchase_wealth:
+    name: 理财申购
+    description: 发起理财产品申购
+    steps:
+      - id: start
+        type: start
+        next: collect_product_code
+      - id: collect_product_code
+        type: collect
+        slot_name: product_code
+        response:
+          mode: static
+          text: "请提供您要申购的理财产品编码。"
+        next: collect_purchase_amount
+      - id: collect_purchase_amount
+        type: collect
+        slot_name: purchase_amount
+        response:
+          mode: static
+          text: "请提供申购金额（元）。"
+        next: action
+      - id: action
+        type: action
+        action: action_purchase_wealth
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "理财申购已提交，请等待确认。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  redeem_wealth:
+    name: 理财赎回
+    description: 发起理财产品赎回
+    steps:
+      - id: start
+        type: start
+        next: collect_product_code
+      - id: collect_product_code
+        type: collect
+        slot_name: product_code
+        response:
+          mode: static
+          text: "请提供您要赎回的理财产品编码。"
+        next: collect_redeem_share
+      - id: collect_redeem_share
+        type: collect
+        slot_name: redeem_share
+        response:
+          mode: static
+          text: "请提供赎回份额。"
+        next: action
+      - id: action
+        type: action
+        action: action_redeem_wealth
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "理财赎回已提交，请等待确认。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  confirm_wealth_order:
+    name: 确认理财订单
+    description: 确认理财申购/赎回订单
+    steps:
+      - id: start
+        type: start
+        next: collect_order_no
+      - id: collect_order_no
+        type: collect
+        slot_name: order_no
+        response:
+          mode: static
+          text: "请提供要确认的理财订单号。"
+        next: action
+      - id: action
+        type: action
+        action: action_confirm_wealth_order
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "理财订单已确认。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  cancel_wealth_order:
+    name: 撤销理财订单
+    description: 撤销未确认的理财订单
+    steps:
+      - id: start
+        type: start
+        next: collect_order_no
+      - id: collect_order_no
+        type: collect
+        slot_name: order_no
+        response:
+          mode: static
+          text: "请提供要撤销的理财订单号。"
+        next: action
+      - id: action
+        type: action
+        action: action_cancel_wealth_order
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "理财订单已撤销。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  # ======================================================== #
+  #  loans — 信贷接口                                         #
+  # ======================================================== #
+
+  submit_credit_application:
+    name: 授信申请
+    description: 提交授信额度申请
+    steps:
+      - id: start
+        type: start
+        next: collect_product_code
+      - id: collect_product_code
+        type: collect
+        slot_name: product_code
+        response:
+          mode: static
+          text: "请提供您要申请的授信产品编码。"
+        next: collect_loan_amount
+      - id: collect_loan_amount
+        type: collect
+        slot_name: loan_amount
+        response:
+          mode: static
+          text: "请提供申请的授信额度（元）。"
+        next: collect_term_months
+      - id: collect_term_months
+        type: collect
+        slot_name: term_months
+        response:
+          mode: static
+          text: "请提供授信期限（月）。"
+        next: action
+      - id: action
+        type: action
+        action: action_submit_credit_application
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "授信申请已提交，请等待审批。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  submit_loan_application:
+    name: 贷款申请
+    description: 提交贷款申请
+    steps:
+      - id: start
+        type: start
+        next: collect_product_code
+      - id: collect_product_code
+        type: collect
+        slot_name: product_code
+        response:
+          mode: static
+          text: "请提供您要申请的贷款产品编码。"
+        next: collect_loan_amount
+      - id: collect_loan_amount
+        type: collect
+        slot_name: loan_amount
+        response:
+          mode: static
+          text: "请提供贷款金额（元）。"
+        next: collect_term_months
+      - id: collect_term_months
+        type: collect
+        slot_name: term_months
+        response:
+          mode: static
+          text: "请提供贷款期限（月）。"
+        next: action
+      - id: action
+        type: action
+        action: action_submit_loan_application
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "贷款申请已提交，请等待审批。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  disburse_loan:
+    name: 贷款放款
+    description: 对已签合同的贷款发起放款
+    steps:
+      - id: start
+        type: start
+        next: collect_contract_no
+      - id: collect_contract_no
+        type: collect
+        slot_name: contract_no
+        response:
+          mode: static
+          text: "请提供贷款合同号。"
+        next: action
+      - id: action
+        type: action
+        action: action_disburse_loan
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "贷款放款已发起，请等待资金到账。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  # ======================================================== #
+  #  repayments — 还款与逾期接口                              #
+  # ======================================================== #
+
+  submit_repayment:
+    name: 贷款还款
+    description: 发起贷款还款
+    steps:
+      - id: start
+        type: start
+        next: collect_contract_no
+      - id: collect_contract_no
+        type: collect
+        slot_name: contract_no
+        response:
+          mode: static
+          text: "请提供贷款合同号。"
+        next: collect_repayment_amount
+      - id: collect_repayment_amount
+        type: collect
+        slot_name: repayment_amount
+        response:
+          mode: static
+          text: "请提供还款金额（元）。"
+        next: action
+      - id: action
+        type: action
+        action: action_submit_repayment
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "还款已提交，请等待扣款结果。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  create_repayment_authorization:
+    name: 自动还款授权
+    description: 创建自动还款授权
+    steps:
+      - id: start
+        type: start
+        next: collect_contract_no
+      - id: collect_contract_no
+        type: collect
+        slot_name: contract_no
+        response:
+          mode: static
+          text: "请提供需要授权自动还款的贷款合同号。"
+        next: action
+      - id: action
+        type: action
+        action: action_create_repayment_authorization
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "自动还款授权已创建成功。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  submit_fee_reduction:
+    name: 费用减免申请
+    description: 发起费用减免申请
+    steps:
+      - id: start
+        type: start
+        next: collect_contract_no
+      - id: collect_contract_no
+        type: collect
+        slot_name: contract_no
+        response:
+          mode: static
+          text: "请提供关联的贷款合同号。"
+        next: collect_fee_reduction_reason
+      - id: collect_fee_reduction_reason
+        type: collect
+        slot_name: fee_reduction_reason
+        response:
+          mode: static
+          text: "请说明费用减免的原因。"
+        next: action
+      - id: action
+        type: action
+        action: action_submit_fee_reduction
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "费用减免申请已提交，请等待审批。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  # ======================================================== #
+  #  risk — 风控与反洗钱接口                                  #
+  # ======================================================== #
+
+  report_risk_event:
+    name: 风险事件上报
+    description: 上报风险事件
+    steps:
+      - id: start
+        type: start
+        next: collect_event_type
+      - id: collect_event_type
+        type: collect
+        slot_name: event_type
+        response:
+          mode: static
+          text: "请提供风险事件类型（如 fraud_fraud欺诈、aml_suspect反洗钱、credit_risk信用风险等）。"
+        next: collect_event_level
+      - id: collect_event_level
+        type: collect
+        slot_name: event_level
+        response:
+          mode: static
+          text: "请提供风险事件级别（low低、medium中、high高）。"
+        next: action
+      - id: action
+        type: action
+        action: action_report_risk_event
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "风险事件已上报，风控团队将跟进处理。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  add_blacklist:
+    name: 加入黑名单
+    description: 将客户加入黑名单
+    steps:
+      - id: start
+        type: start
+        next: collect_blacklist_type
+      - id: collect_blacklist_type
+        type: collect
+        slot_name: blacklist_type
+        response:
+          mode: static
+          text: "请提供黑名单类型（transaction交易黑名单、customer客户黑名单等）。"
+        next: action
+      - id: action
+        type: action
+        action: action_add_blacklist
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "黑名单添加已提交。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  # ======================================================== #
+  #  collections — 催收接口                                   #
+  # ======================================================== #
+
+  create_collection_case:
+    name: 创建催收案件
+    description: 创建催收案件
+    steps:
+      - id: start
+        type: start
+        next: collect_case_type
+      - id: collect_case_type
+        type: collect
+        slot_name: case_type
+        response:
+          mode: static
+          text: "请提供催收案件类型（如 overdue逾期催收、early_warning预警催收等）。"
+        next: action
+      - id: action
+        type: action
+        action: action_create_collection_case
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "催收案件已创建。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  add_collection_action:
+    name: 添加催收动作
+    description: 对催收案件添加催收动作
+    steps:
+      - id: start
+        type: start
+        next: collect_case_no
+      - id: collect_case_no
+        type: collect
+        slot_name: case_no
+        response:
+          mode: static
+          text: "请提供催收案件号。"
+        next: collect_action_type
+      - id: collect_action_type
+        type: collect
+        slot_name: collection_action_type
+        response:
+          mode: static
+          text: "请提供催收动作类型（phone_call电话、sms短信、visit上门、letter函件等）。"
+        next: action
+      - id: action
+        type: action
+        action: action_add_collection_action
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "催收动作已记录。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  # ======================================================== #
+  #  operations — 运营支撑接口                                #
+  # ======================================================== #
+
+  create_support_ticket:
+    name: 创建客服工单
+    description: 创建客服工单
+    steps:
+      - id: start
+        type: start
+        next: collect_ticket_type
+      - id: collect_ticket_type
+        type: collect
+        slot_name: ticket_type
+        response:
+          mode: static
+          text: "请选择工单类型（complaint投诉、consultation咨询、suggestion建议）。"
+        next: collect_ticket_content
+      - id: collect_ticket_content
+        type: collect
+        slot_name: ticket_content
+        response:
+          mode: static
+          text: "请描述工单的具体内容。"
+        next: action
+      - id: action
+        type: action
+        action: action_create_support_ticket
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "客服工单已创建，客服人员将尽快跟进处理。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  send_notification:
+    name: 发送通知
+    description: 发送业务通知
+    steps:
+      - id: start
+        type: start
+        next: collect_notification_type
+      - id: collect_notification_type
+        type: collect
+        slot_name: notification_type
+        response:
+          mode: static
+          text: "请选择通知类型（system系统通知、transaction交易通知、marketing营销通知）。"
+        next: collect_notification_content
+      - id: collect_notification_content
+        type: collect
+        slot_name: notification_content
+        response:
+          mode: static
+          text: "请提供通知内容。"
+        next: action
+      - id: action
+        type: action
+        action: action_send_notification
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "通知已发送。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  create_workflow_instance:
+    name: 创建工作流
+    description: 创建工作流实例
+    steps:
+      - id: start
+        type: start
+        next: collect_workflow_type
+      - id: collect_workflow_type
+        type: collect
+        slot_name: workflow_type
+        response:
+          mode: static
+          text: "请提供工作流类型编码。"
+        next: action
+      - id: action
+        type: action
+        action: action_create_workflow_instance
+        args: {}
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "工作流实例已创建。"
+        next: end
       - id: end
         type: end
         next: []

@@ -15,15 +15,20 @@ from .shared import (
 logger = logging.getLogger(__name__)
 
 
+def _slots(state: DialogueState) -> dict[str, Any]:
+    return state.active_task.slots if state.active_task else {}
+
+
 class ActionCreateAccount(Action):
     name = "action_create_account"
 
     async def run(self, state: DialogueState, action_kwargs: dict[str, Any]) -> ActionResult:
         token = set_current_customer_no(state.sender_id)
         try:
-            account_type = action_kwargs.get("account_type", "demand_deposit")
-            currency = action_kwargs.get("currency", "CNY")
-            branch_code = action_kwargs.get("branch_code", "")
+            s = _slots(state)
+            account_type = s.get("account_type", action_kwargs.get("account_type", "demand_deposit"))
+            currency = s.get("currency", action_kwargs.get("currency", "CNY"))
+            branch_code = s.get("branch_code", action_kwargs.get("branch_code", ""))
             result = await create_account(
                 account_type=account_type,
                 currency=currency,
@@ -46,9 +51,10 @@ class ActionCreateBankCard(Action):
     async def run(self, state: DialogueState, action_kwargs: dict[str, Any]) -> ActionResult:
         token = set_current_customer_no(state.sender_id)
         try:
-            account_no = action_kwargs.get("account_no", "")
-            card_type = action_kwargs.get("card_type", "debit")
-            card_name = action_kwargs.get("card_name")
+            s = _slots(state)
+            account_no = s.get("account_no", action_kwargs.get("account_no", ""))
+            card_type = s.get("card_type", action_kwargs.get("card_type", "debit"))
+            card_name = s.get("card_name", action_kwargs.get("card_name"))
             result = await create_bank_card(
                 account_no=account_no,
                 card_type=card_type,
