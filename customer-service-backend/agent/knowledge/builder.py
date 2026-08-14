@@ -28,10 +28,9 @@ def discover_providers() -> list[KnowledgeProvider]:
         # 只注册在该模块中定义的类，跳过跨模块导入的类
         if obj.__module__ != module.__name__:
             continue
-        if not getattr(obj, "provider_id", None):
-            raise ValueError(
-                f"KnowledgeProvider {obj.__name__} must define a non-empty `provider_id` attribute"
-            )
+        # 跳过抽象基类和未设置 provider_id 的基类
+        if inspect.isabstract(obj) or not getattr(obj, "provider_id", None):
+            continue
         providers.append(obj())
         logger.info(f"Registered knowledge provider {obj.__name__} ({obj.provider_id})")
 

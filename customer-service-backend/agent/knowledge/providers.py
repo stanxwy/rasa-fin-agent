@@ -19,6 +19,8 @@ from agent.task.action.custom.shared import (
     fetch_transfer_records,
     fetch_wealth_product,
     fetch_wealth_products,
+    reset_current_customer_no,
+    set_current_customer_no,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,14 +37,35 @@ class KnowledgeProvider(ABC):
     async def retrieve(self, state: DialogueState) -> list[KnowledgeChunk]: ...
 
 
+class BaseAPIProvider(KnowledgeProvider):
+    """API Provider 基类：自动设置当前客户号到 contextvar，并记录 knowledge chunks。
+
+    子类只需实现 ``_retrieve``，无需关心鉴权头和日志。
+    """
+
+    async def retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+        token = set_current_customer_no(state.sender_id)
+        try:
+            chunks = await self._retrieve(state)
+        finally:
+            reset_current_customer_no(token)
+        for chunk in chunks:
+            preview = chunk.content[:500]
+            logger.info(f"[knowledge] provider={self.provider_id} chunk={preview}")
+        return chunks
+
+    @abstractmethod
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]: ...
+
+
 # ------------------------------------------------------------------ #
 #  银行账户                                                           #
 # ------------------------------------------------------------------ #
 
-class BankAccountAPIProvider(KnowledgeProvider):
+class BankAccountAPIProvider(BaseAPIProvider):
     provider_id = 'api.bank_account'
 
-    async def retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
         account_no = state.focused_object.id
         data: dict[str, Any] | None = await fetch_account(account_no)
         if data is None:
@@ -55,10 +78,10 @@ class BankAccountAPIProvider(KnowledgeProvider):
 #  银行卡                                                             #
 # ------------------------------------------------------------------ #
 
-class BankCardAPIProvider(KnowledgeProvider):
+class BankCardAPIProvider(BaseAPIProvider):
     provider_id = 'api.bank_card'
 
-    async def retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
         card_no = state.focused_object.id
         data: dict[str, Any] | None = await fetch_card(card_no)
         if data is None:
@@ -71,10 +94,10 @@ class BankCardAPIProvider(KnowledgeProvider):
 #  信用卡                                                             #
 # ------------------------------------------------------------------ #
 
-class CreditCardAPIProvider(KnowledgeProvider):
+class CreditCardAPIProvider(BaseAPIProvider):
     provider_id = 'api.credit_card'
 
-    async def retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
         card_no = state.focused_object.id
         data: dict[str, Any] | None = await fetch_card(card_no)
         if data is None:
@@ -87,10 +110,10 @@ class CreditCardAPIProvider(KnowledgeProvider):
 #  存款产品                                                           #
 # ------------------------------------------------------------------ #
 
-class DepositAPIProvider(KnowledgeProvider):
+class DepositAPIProvider(BaseAPIProvider):
     provider_id = 'api.deposit'
 
-    async def retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
         product_code = state.focused_object.id
         products = await fetch_deposit_products()
         if products is None:
@@ -109,10 +132,10 @@ class DepositAPIProvider(KnowledgeProvider):
 #  贷款                                                               #
 # ------------------------------------------------------------------ #
 
-class LoanAPIProvider(KnowledgeProvider):
+class LoanAPIProvider(BaseAPIProvider):
     provider_id = 'api.loan'
 
-    async def retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
         identifier = state.focused_object.id
         # 先尝试作为合同号查询贷款合同
         contract = await fetch_loan_contract(identifier)
@@ -136,10 +159,10 @@ class LoanAPIProvider(KnowledgeProvider):
 #  理财产品                                                           #
 # ------------------------------------------------------------------ #
 
-class WealthProductAPIProvider(KnowledgeProvider):
+class WealthProductAPIProvider(BaseAPIProvider):
     provider_id = 'api.wealth_product'
 
-    async def retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
         product_code = state.focused_object.id
         data: dict[str, Any] | None = await fetch_wealth_product(product_code)
         if data is None:
@@ -157,10 +180,10 @@ class WealthProductAPIProvider(KnowledgeProvider):
 #  基金产品                                                           #
 # ------------------------------------------------------------------ #
 
-class FundProductAPIProvider(KnowledgeProvider):
+class FundProductAPIProvider(BaseAPIProvider):
     provider_id = 'api.fund_product'
 
-    async def retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
         product_code = state.focused_object.id
         data: dict[str, Any] | None = await fetch_fund_product(product_code)
         if data is not None:
@@ -178,10 +201,10 @@ class FundProductAPIProvider(KnowledgeProvider):
 #  交易流水                                                           #
 # ------------------------------------------------------------------ #
 
-class TransactionAPIProvider(KnowledgeProvider):
+class TransactionAPIProvider(BaseAPIProvider):
     provider_id = 'api.transaction'
 
-    async def retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
         transaction_no = state.focused_object.id
         data: dict[str, Any] | None = await fetch_transaction(transaction_no)
         if data is None:
@@ -194,10 +217,10 @@ class TransactionAPIProvider(KnowledgeProvider):
 #  转账记录                                                           #
 # ------------------------------------------------------------------ #
 
-class TransferAPIProvider(KnowledgeProvider):
+class TransferAPIProvider(BaseAPIProvider):
     provider_id = 'api.transfer'
 
-    async def retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
+    async def _retrieve(self, state: DialogueState) -> list[KnowledgeChunk]:
         identifier = state.focused_object.id
         # 先尝试作为交易号查询单笔转账
         transaction = await fetch_transaction(identifier)
