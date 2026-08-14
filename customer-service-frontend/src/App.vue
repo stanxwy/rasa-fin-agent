@@ -110,13 +110,6 @@ const currentSessionId = computed(
   () => sessions.value.find((s) => s.is_current)?.session_id ?? null
 )
 
-// TTS state
-const ttsState = ref({})
-let currentAudio = null
-
-// Copy state
-const copyState = ref({})
-
 // ── Canvas 粒子背景系统 ──────────────────────────────────────────────
 const bgCanvas = ref(null)
 let animFrameId = null
@@ -313,34 +306,34 @@ const chatHistoryEndpoint = computed(() => {
     : base
 })
 
-// 金融后端 API 端点（/api/v1/*）
+// 金融后端 API 端点（/backend/api/v1/* → proxy rewrite → fin-backend:8000/api/v1/*）
 // 响应格式：{code:0, message:"ok", data:{...}}
 // 列表端点：data.list / data.total_count
 const finApiCustomerDetail = computed(
-  () => `/api/v1/customers/${encodeURIComponent(senderId.value.trim())}`
+  () => `/backend/api/v1/customers/${encodeURIComponent(senderId.value.trim())}`
 )
 const finApiCustomerAccounts = computed(
-  () => `/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/accounts`
+  () => `/backend/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/accounts`
 )
 function finApiAccountTransactions(accountNo) {
-  return `/api/v1/accounts/${encodeURIComponent(accountNo)}/transactions?page_size=100`
+  return `/backend/api/v1/accounts/${encodeURIComponent(accountNo)}/transactions?page_size=100`
 }
-const finApiWealthProducts = '/api/v1/wealth/products'
+const finApiWealthProducts = '/backend/api/v1/wealth/products'
 const finApiWealthPositions = computed(
-  () => `/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/wealth/positions`
+  () => `/backend/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/wealth/positions`
 )
-const finApiLoanProducts = '/api/v1/loan/products'
+const finApiLoanProducts = '/backend/api/v1/loan/products'
 const finApiCreditLimits = computed(
-  () => `/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/credit-limits`
+  () => `/backend/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/credit-limits`
 )
 const finApiRepaymentBills = computed(
-  () => `/api/v1/repayment/bills?customer_no=${encodeURIComponent(senderId.value.trim())}&page_size=100`
+  () => `/backend/api/v1/repayment/bills?customer_no=${encodeURIComponent(senderId.value.trim())}&page_size=100`
 )
 const finApiOverdues = computed(
-  () => `/api/v1/overdues?customer_no=${encodeURIComponent(senderId.value.trim())}&page_size=100`
+  () => `/backend/api/v1/overdues?customer_no=${encodeURIComponent(senderId.value.trim())}&page_size=100`
 )
 const finApiNotifications = computed(
-  () => `/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/notifications?page_size=100`
+  () => `/backend/api/v1/customers/${encodeURIComponent(senderId.value.trim())}/notifications?page_size=100`
 )
 
 function createBaseMessage(role) {
@@ -849,7 +842,8 @@ async function sendTextMessage() {
   await sendPayload({ text }, () => appendUserText(text))
 }
 
-async function sendOrder(order) {
+// 通用：点击右侧业务对象卡片 → 发送到对话框
+async function sendSidebarObject(objectType, id, title, attributes = {}) {
   const currentSenderId = senderId.value.trim()
   if (!currentSenderId) {
     errorMessage.value = UI.senderIdRequired
@@ -858,38 +852,12 @@ async function sendOrder(order) {
 
   await sendPayload({
     object: {
-      type: 'order',
-      id: order.order_id,
-      title: order.title,
-      attributes: {
-        status: order.status,
-        amount: order.amount,
-        created_at: order.created_at,
-        cover_url: order.cover_url,
-      },
+      type: objectType,
+      id: String(id),
+      title,
+      attributes,
     },
-  }, () => appendUserObject('order', { ...order }))
-}
-
-async function sendProduct(product) {
-  const currentSenderId = senderId.value.trim()
-  if (!currentSenderId) {
-    errorMessage.value = UI.senderIdRequired
-    return
-  }
-
-  await sendPayload({
-    object: {
-      type: 'product',
-      id: product.product_id,
-      title: product.title,
-      attributes: {
-        price: product.price,
-        cover_url: product.cover_url,
-        description: product.description,
-      },
-    },
-  }, () => appendUserObject('product', { ...product }))
+  }, () => appendUserObject(objectType, { id, title, ...attributes }))
 }
 
 watch(
@@ -928,47 +896,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {})
-
-async function playTts(botMsg) {
-  const msgId = botMsg.id
-  if (!botMsg.text || ttsState.value[msgId] === 'loading') return
-
-  if (currentAudio) { currentAudio.pause(); currentAudio = null }
-  for (const key of Object.keys(ttsState.value)) {
-    if (ttsState.value[key] === 'playing') ttsState.value[key] = 'idle'
-  }
-
-  ttsState.value[msgId] = 'loading'
-  try {
-    const response = await fetch('/api/chat/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: botMsg.text }),
-    })
-    if (!response.ok) throw new Error('TTS 请求失败')
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    currentAudio = new Audio(url)
-    ttsState.value[msgId] = 'playing'
-    currentAudio.onended = () => { ttsState.value[msgId] = 'idle'; URL.revokeObjectURL(url); currentAudio = null }
-    currentAudio.onerror = () => { ttsState.value[msgId] = 'idle'; URL.revokeObjectURL(url); currentAudio = null }
-    await currentAudio.play()
-  } catch (error) {
-    ttsState.value[msgId] = 'idle'
-    console.error('TTS error:', error)
-  }
-}
-
-async function copyBotText(botMsg) {
-  const msgId = botMsg.id
-  try {
-    await navigator.clipboard.writeText(botMsg.text)
-    copyState.value[msgId] = true
-    setTimeout(() => { copyState.value[msgId] = false }, 1800)
-  } catch (error) {
-    console.error('Copy failed:', error)
-  }
-}
 </script>
 
 <template>
@@ -1110,10 +1037,11 @@ async function copyBotText(botMsg) {
                 </div>
               </div>
 
-              <!-- 客服回复区域（京东金融风格：白色气泡靠左，无头像，顶部只显示名称） -->
+              <!-- 客服回复区域（京东金融风格：白色气泡靠左，无头像，顶部显示名称+时间戳） -->
               <div v-if="item.botMessages.length > 0" class="turn-section bot-section">
                 <div class="section-meta bot-meta">
                   <span class="meta-name">{{ customerService.name }}</span>
+                  <span class="meta-time">{{ formatTime(item.botMessages[0]?.timestamp) }}</span>
                 </div>
                 <div class="bot-messages">
                   <div
@@ -1143,29 +1071,7 @@ async function copyBotText(botMsg) {
                       </div>
                     </template>
                     <template v-else>
-                      <div class="bot-text-row">
-                        <p>{{ botMsg.text }}</p>
-                        <div class="bot-actions">
-                          <button type="button" class="tts-button"
-                            :class="{ 'tts-loading': ttsState[botMsg.id] === 'loading', 'tts-playing': ttsState[botMsg.id] === 'playing' }"
-                            :disabled="ttsState[botMsg.id] === 'loading'"
-                            :title="ttsState[botMsg.id] === 'playing' ? UI.tts.playing : UI.tts.default"
-                            @click.stop="playTts(botMsg)">
-                            <span v-if="ttsState[botMsg.id] === 'loading'" class="tts-spinner"></span>
-                            <span v-else-if="ttsState[botMsg.id] === 'playing'" class="tts-bars">
-                              <span></span><span></span><span></span>
-                            </span>
-                            <span v-else>🔈</span>
-                          </button>
-                          <button type="button" class="copy-button"
-                            :class="{ 'copy-done': copyState[botMsg.id] }"
-                            :title="copyState[botMsg.id] ? UI.copy.done : UI.copy.title"
-                            @click.stop="copyBotText(botMsg)">
-                            <span v-if="copyState[botMsg.id]">✓</span>
-                            <span v-else>📋</span>
-                          </button>
-                        </div>
-                      </div>
+                      <p>{{ botMsg.text }}</p>
                     </template>
                     <div v-if="botMsg.suggestions && botMsg.suggestions.length > 0" class="suggestion-chips">
                       <button
@@ -1177,7 +1083,6 @@ async function copyBotText(botMsg) {
                         @click.stop="sendSuggestion(sug)"
                       >{{ sug }}</button>
                     </div>
-                    <div class="msg-time">{{ formatTime(botMsg.timestamp) }}</div>
                   </div>
                 </div>
               </div>
@@ -1252,7 +1157,8 @@ async function copyBotText(botMsg) {
         <!-- ── Tab: 银行账户 ────────────────────────────────────────── -->
         <div v-else-if="activeTab === 'accounts'" class="sidebar-list">
           <div v-if="!accounts.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.accounts }}</div>
-          <article v-for="acc in accounts" :key="acc.account_no" class="sidebar-card">
+          <article v-for="acc in accounts" :key="acc.account_no" class="sidebar-card clickable"
+            @click="sendSidebarObject('bank_account', acc.account_no, acc.account_product?.product_name || BUSINESS_PANEL.CARD_DEFAULTS.accountTitle, { balance: acc.balance_amount, currency: acc.currency_code, status: acc.account_status })">
             <div class="card-top">
               <div class="card-title">{{ acc.account_product?.product_name || accountProductName(acc.account_product?.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.accountTitle }}</div>
               <div class="card-amount">{{ currencyName(acc.currency_code) }} {{ fmtAmt(acc.balance_amount) }}</div>
@@ -1266,7 +1172,8 @@ async function copyBotText(botMsg) {
         <!-- ── Tab: 交易流水 ────────────────────────────────────────── -->
         <div v-else-if="activeTab === 'transactions'" class="sidebar-list">
           <div v-if="!transactions.length && !isLoadingSidebar" class="sidebar-empty">{{ BUSINESS_PANEL.EMPTY.transactions }}</div>
-          <article v-for="txn in transactions" :key="txn.transaction_no || txn.id" class="sidebar-card">
+          <article v-for="txn in transactions" :key="txn.transaction_no || txn.id" class="sidebar-card clickable"
+            @click="sendSidebarObject('transaction', txn.transaction_no || txn.id, txn.transaction_type || BUSINESS_PANEL.CARD_DEFAULTS.transactionTitle, { amount: txn.transaction_amount, status: txn.transaction_status, time: txn.transaction_at })">
             <div class="card-top">
               <div class="card-title">{{ txn.transaction_type || BUSINESS_PANEL.CARD_DEFAULTS.transactionTitle }}</div>
               <div class="card-amount" :style="{ color: Number(txn.transaction_amount) >= 0 ? '#00b42a' : '#f53f3f' }">
@@ -1290,7 +1197,8 @@ async function copyBotText(botMsg) {
 
           <template v-if="wealthPositions.length">
             <div class="section-label">{{ BUSINESS_PANEL.SECTIONS.wealth.positions }}</div>
-            <article v-for="pos in wealthPositions" :key="pos.id || pos.position_no" class="sidebar-card">
+            <article v-for="pos in wealthPositions" :key="pos.id || pos.position_no" class="sidebar-card clickable"
+              @click="sendSidebarObject('wealth_product', pos.product_code, pos.product_name || wealthName(pos.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.wealthPosition, { shares: pos.holding_shares, income: pos.income, status: pos.position_status })">
               <div class="card-top">
                 <div class="card-title">{{ pos.product_name || wealthName(pos.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.wealthPosition }}</div>
                 <div class="card-amount">{{ fmtAmt(pos.holding_amount || pos.market_value) }}</div>
@@ -1306,7 +1214,8 @@ async function copyBotText(botMsg) {
 
           <template v-if="wealthProducts.length">
             <div class="section-label">{{ BUSINESS_PANEL.SECTIONS.wealth.products }}</div>
-            <article v-for="prod in wealthProducts" :key="prod.product_code" class="sidebar-card">
+            <article v-for="prod in wealthProducts" :key="prod.product_code" class="sidebar-card clickable"
+              @click="sendSidebarObject('wealth_product', prod.product_code, prod.product_name || wealthName(prod.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.wealthProduct, { type: prod.product_type, yield: prod.expected_yield_rate, risk: prod.risk_level?.risk_level_code, status: prod.open_status })">
               <div class="card-top">
                 <div class="card-title">{{ prod.product_name || wealthName(prod.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.wealthProduct }}</div>
                 <div class="card-amount" style="color: #d97706;">
@@ -1327,7 +1236,8 @@ async function copyBotText(botMsg) {
 
           <template v-if="creditLimits.length">
             <div class="section-label">{{ BUSINESS_PANEL.SECTIONS.loans.limits }}</div>
-            <article v-for="lim in creditLimits" :key="lim.limit_no" class="sidebar-card">
+            <article v-for="lim in creditLimits" :key="lim.limit_no" class="sidebar-card clickable"
+              @click="sendSidebarObject('loan', lim.product_code, loanName(lim.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.loanLimit, { total_limit: lim.total_limit_amount, available: lim.available_limit_amount, limit_no: lim.limit_no })">
               <div class="card-top">
                 <div class="card-title">{{ loanName(lim.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.loanLimit }}</div>
                 <div class="card-amount">{{ fmtAmt(lim.total_limit_amount) }}</div>
@@ -1342,7 +1252,8 @@ async function copyBotText(botMsg) {
 
           <template v-if="loanProducts.length">
             <div class="section-label">{{ BUSINESS_PANEL.SECTIONS.loans.products }}</div>
-            <article v-for="loan in loanProducts" :key="loan.product_code" class="sidebar-card">
+            <article v-for="loan in loanProducts" :key="loan.product_code" class="sidebar-card clickable"
+              @click="sendSidebarObject('loan', loan.product_code, loan.product_name || loanName(loan.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.loanProduct, { rate: loan.annual_interest_rate, min_amount: loan.min_amount, max_amount: loan.max_amount, term: loan.min_term_months + '-' + loan.max_term_months })">
               <div class="card-top">
                 <div class="card-title">{{ loan.product_name || loanName(loan.product_code) || BUSINESS_PANEL.CARD_DEFAULTS.loanProduct }}</div>
               </div>
@@ -2468,6 +2379,10 @@ async function copyBotText(botMsg) {
   border-color: rgba(245, 158, 11, 0.18);
   transform: translateY(-3px);
   box-shadow: var(--shadow-md), var(--shadow-glow-amber);
+}
+
+.sidebar-card.clickable {
+  cursor: pointer;
 }
 
 .card-top {

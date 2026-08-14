@@ -19,14 +19,14 @@ class ClarifyMessageLoader:
 
     CONFIG_DIR = Path(__file__).resolve().parents[2] / "domain_config"
 
-    def load_from_config_dir(self) -> dict[str, str]:
+    def load_from_config_dir(self, object_clarify_keys: dict[str, str]) -> dict[str, str]:
         paths = [
             p for p in self.CONFIG_DIR.iterdir()
             if p.is_file() and p.suffix in (".yml", ".yaml")
         ]
-        return self.load_many(paths)
+        return self.load_many(paths, object_clarify_keys)
 
-    def load_many(self, paths: list[Path]) -> dict[str, str]:
+    def load_many(self, paths: list[Path], object_clarify_keys: dict[str, str]) -> dict[str, str]:
         merged: dict[str, str] = {}
         for path in paths:
             data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -38,7 +38,7 @@ class ClarifyMessageLoader:
             raise FileNotFoundError(
                 f"No 'clarify_messages' section found in {paths}"
             )
-        missing = [k for k in ClarifyResponder.required_message_keys() if k not in merged]
+        missing = [k for k in ClarifyResponder.required_message_keys(object_clarify_keys) if k not in merged]
         if missing:
             raise ValueError(f"clarify_messages missing required keys: {missing}")
         return merged

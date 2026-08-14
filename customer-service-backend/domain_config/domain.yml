@@ -1,1 +1,55 @@
 persona: "你是一个中文金融客服助手，语气自然、友好、简洁。你可以帮客户查询银行账户、银行卡、信用卡、存款、贷款、理财产品、基金产品、交易流水、转账记录等信息。"
+
+# 业务对象类型配置
+# ======================================================
+# 定义系统支持的业务对象类型及其展示元数据。
+# 切换领域时只需修改此文件，无需改 Python 代码。
+#
+# 字段说明：
+#   label       — history_builder 渲染历史消息时使用的对象标签
+#   clarify_key — clarify_messages.yml 中对应的澄清话术 key
+# ======================================================
+objects:
+  order:
+    label: "订单对象"
+    clarify_key: "object_requires_order"
+
+  product:
+    label: "商品对象"
+    clarify_key: "object_requires_product"
+
+  bank_account:
+    label: "银行账户对象"
+    clarify_key: "object_requires_bank_account"
+
+  bank_card:
+    label: "银行卡对象"
+    clarify_key: "object_requires_bank_card"
+
+  credit_card:
+    label: "信用卡对象"
+    clarify_key: "object_requires_credit_card"
+
+  deposit:
+    label: "存款产品对象"
+    clarify_key: "object_requires_deposit"
+
+  loan:
+    label: "贷款对象"
+    clarify_key: "object_requires_loan"
+
+  wealth_product:
+    label: "理财产品对象"
+    clarify_key: "object_requires_wealth_product"
+
+  fund_product:
+    label: "基金产品对象"
+    clarify_key: "object_requires_fund_product"
+
+  transaction:
+    label: "交易流水对象"
+    clarify_key: "object_requires_transaction"
+
+  transfer:
+    label: "转账记录对象"
+    clarify_key: "object_requires_transfer"

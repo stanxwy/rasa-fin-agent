@@ -8,25 +8,13 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:18082',
         changeOrigin: true,
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq) => {
-            // 对 /api/v1 开头的金融API注入默认请求头
-            if (proxyReq.path.startsWith('/api/v1')) {
-              if (!proxyReq.hasHeader('X-Channel-Code')) {
-                proxyReq.setHeader('X-Channel-Code', 'MOBILE_BANK')
-              }
-              if (!proxyReq.hasHeader('Authorization')) {
-                proxyReq.setHeader('Authorization', 'Bearer CUS00000001')
-              }
-            }
-          })
-        },
       },
-      '/health': {
+      '/backend': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/backend/, ''),
       },
     },
   },

@@ -5,13 +5,20 @@ from agent.domain.messages import (
     BotMessage,
     FocusedObject,
     MessageType,
-    ObjectType,
     UserMessage,
 )
 from agent.domain.state import Turn
 
 
 class HistoryBuilder:
+
+    # 对象标签映射，由 singleton 启动时通过 configure() 注入（来自 objects.yml）。
+    _object_labels: dict[str, str] = {}
+
+    @classmethod
+    def configure(cls, labels: dict[str, str]) -> None:
+        """注入对象标签配置（type → label），来自 objects.yml。"""
+        cls._object_labels = labels
 
     @staticmethod
     def build(turns: list[Turn]) -> str:
@@ -49,23 +56,9 @@ class HistoryBuilder:
     def _render_text_msg(text: str) -> str:
         return text.strip()
 
-    _OBJECT_LABELS = {
-        ObjectType.ORDER: "订单对象",
-        ObjectType.PRODUCT: "商品对象",
-        ObjectType.BANK_ACCOUNT: "银行账户对象",
-        ObjectType.BANK_CARD: "银行卡对象",
-        ObjectType.CREDIT_CARD: "信用卡对象",
-        ObjectType.DEPOSIT: "存款产品对象",
-        ObjectType.LOAN: "贷款对象",
-        ObjectType.WEALTH_PRODUCT: "理财产品对象",
-        ObjectType.FUND_PRODUCT: "基金产品对象",
-        ObjectType.TRANSACTION: "交易流水对象",
-        ObjectType.TRANSFER: "转账记录对象",
-    }
-
     @classmethod
     def _render_obj_msg(cls, object_msg: FocusedObject) -> str:
-        label = cls._OBJECT_LABELS.get(object_msg.type, "业务对象")
+        label = cls._object_labels.get(object_msg.type, "业务对象")
         id = object_msg.id
         title = object_msg.title
         attributes: dict[str, Any] = object_msg.attributes

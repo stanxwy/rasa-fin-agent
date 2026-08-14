@@ -7,6 +7,10 @@ class ObjectType(StrEnum):
     """
     聚焦对象类型。用枚举取代散落的魔法字符串，便于类型检查与重命名。
     序列化后仍是裸字符串（"order"/"product"），前后端契约不变。
+
+    注意：对象类型的展示元数据（label、clarify_key）已提取到
+    ``domain_config/objects.yml``，由 ``ObjectConfigLoader`` 加载。
+    新增对象类型时需同时在此枚举和 objects.yml 中添加。
     """
     ORDER = "order"
     PRODUCT = "product"

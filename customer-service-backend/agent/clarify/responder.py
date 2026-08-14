@@ -3,7 +3,7 @@ import logging
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 
-from agent.domain.messages import BotMessage, ObjectType
+from agent.domain.messages import BotMessage
 from agent.domain.state import DialogueState
 from agent.infra.llm import llm
 from agent.infra.observability.logging import log_llm_response, log_prompt_stage
@@ -24,49 +24,29 @@ class ClarifyResponder:
         ClarifyReason.MISSING_KNOWLEDGE_INTENT,
         ClarifyReason.MISSING_FOCUSED_OBJECT,
     })
-    # 以下 key 不是枚举成员，是「按对象类型派生 / 兜底」的呈现层 key，
-    # 字面量留在此处是唯一合理落点（无法从 ClarifyReason 派生）。
-    OBJECT_ORDER_KEY = "object_requires_order"
-    OBJECT_PRODUCT_KEY = "object_requires_product"
-    OBJECT_BANK_ACCOUNT_KEY = "object_requires_bank_account"
-    OBJECT_BANK_CARD_KEY = "object_requires_bank_card"
-    OBJECT_CREDIT_CARD_KEY = "object_requires_credit_card"
-    OBJECT_DEPOSIT_KEY = "object_requires_deposit"
-    OBJECT_LOAN_KEY = "object_requires_loan"
-    OBJECT_WEALTH_PRODUCT_KEY = "object_requires_wealth_product"
-    OBJECT_FUND_PRODUCT_KEY = "object_requires_fund_product"
-    OBJECT_TRANSACTION_KEY = "object_requires_transaction"
-    OBJECT_TRANSFER_KEY = "object_requires_transfer"
     FALLBACK_KEY = "fallback"
 
-    _OBJECT_KEY_MAP = {
-        ObjectType.ORDER: OBJECT_ORDER_KEY,
-        ObjectType.PRODUCT: OBJECT_PRODUCT_KEY,
-        ObjectType.BANK_ACCOUNT: OBJECT_BANK_ACCOUNT_KEY,
-        ObjectType.BANK_CARD: OBJECT_BANK_CARD_KEY,
-        ObjectType.CREDIT_CARD: OBJECT_CREDIT_CARD_KEY,
-        ObjectType.DEPOSIT: OBJECT_DEPOSIT_KEY,
-        ObjectType.LOAN: OBJECT_LOAN_KEY,
-        ObjectType.WEALTH_PRODUCT: OBJECT_WEALTH_PRODUCT_KEY,
-        ObjectType.FUND_PRODUCT: OBJECT_FUND_PRODUCT_KEY,
-        ObjectType.TRANSACTION: OBJECT_TRANSACTION_KEY,
-        ObjectType.TRANSFER: OBJECT_TRANSFER_KEY,
-    }
-
     @classmethod
-    def required_message_keys(cls) -> frozenset[str]:
+    def required_message_keys(cls, object_clarify_keys: dict[str, str]) -> frozenset[str]:
         """yml 必须提供的文案 key 集合（加载期校验用）。
 
-        单一真源：直映 reason 的 key 由枚举派生，仅派生/兜底 key 为字面量；
+        单一真源：直映 reason 的 key 由枚举派生，对象派生 key 来自 objects.yml 配置；
         ``ClarifyMessageLoader`` 直接复用本方法，避免在 loader 里重复声明字符串。
         """
         return frozenset({r.value for r in cls.DIRECT_REASONS}) | frozenset(
-            cls._OBJECT_KEY_MAP.values()
+            object_clarify_keys.values()
         ) | frozenset({cls.FALLBACK_KEY})
 
-    def __init__(self, messages: dict[str, str], persona: str = ""):
+    def __init__(
+        self,
+        messages: dict[str, str],
+        persona: str = "",
+        object_clarify_keys: dict[str, str] | None = None,
+    ):
         self._messages = messages
         self._persona = persona
+        # type → clarify_message key，来自 objects.yml 配置
+        self._object_key_map: dict[str, str] = object_clarify_keys or {}
 
     async def respond(self, state: DialogueState, reason: ClarifyReason) -> list[BotMessage]:
 
@@ -107,7 +87,7 @@ class ClarifyResponder:
     def _resolve_key(self, reason: ClarifyReason, focused_object) -> str:
         if reason is ClarifyReason.OBJECT_REQUIRES_INTENT:
             if focused_object is not None:
-                key = self._OBJECT_KEY_MAP.get(focused_object.type)
+                key = self._object_key_map.get(focused_object.type)
                 if key is not None:
                     return key
             return self.FALLBACK_KEY
