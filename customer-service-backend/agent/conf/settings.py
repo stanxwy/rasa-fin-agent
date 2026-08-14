@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     llm_base_url: str
     llm_api_key: str
 
-    commerce_api_base_url: str
+    backend_api_base_url: str
 
     database_url_sync: str
     database_url: str

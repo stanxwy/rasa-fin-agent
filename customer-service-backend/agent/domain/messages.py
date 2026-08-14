@@ -10,6 +10,15 @@ class ObjectType(StrEnum):
     """
     ORDER = "order"
     PRODUCT = "product"
+    BANK_ACCOUNT = "bank_account"
+    BANK_CARD = "bank_card"
+    CREDIT_CARD = "credit_card"
+    DEPOSIT = "deposit"
+    LOAN = "loan"
+    WEALTH_PRODUCT = "wealth_product"
+    FUND_PRODUCT = "fund_product"
+    TRANSACTION = "transaction"
+    TRANSFER = "transfer"
 
 
 class FocusedObject(BaseModel):

@@ -24,11 +24,34 @@ class ClarifyResponder:
         ClarifyReason.MISSING_KNOWLEDGE_INTENT,
         ClarifyReason.MISSING_FOCUSED_OBJECT,
     })
-    # 以下 3 个不是枚举成员，是「按对象类型派生 / 兜底」的呈现层 key，
+    # 以下 key 不是枚举成员，是「按对象类型派生 / 兜底」的呈现层 key，
     # 字面量留在此处是唯一合理落点（无法从 ClarifyReason 派生）。
     OBJECT_ORDER_KEY = "object_requires_order"
     OBJECT_PRODUCT_KEY = "object_requires_product"
+    OBJECT_BANK_ACCOUNT_KEY = "object_requires_bank_account"
+    OBJECT_BANK_CARD_KEY = "object_requires_bank_card"
+    OBJECT_CREDIT_CARD_KEY = "object_requires_credit_card"
+    OBJECT_DEPOSIT_KEY = "object_requires_deposit"
+    OBJECT_LOAN_KEY = "object_requires_loan"
+    OBJECT_WEALTH_PRODUCT_KEY = "object_requires_wealth_product"
+    OBJECT_FUND_PRODUCT_KEY = "object_requires_fund_product"
+    OBJECT_TRANSACTION_KEY = "object_requires_transaction"
+    OBJECT_TRANSFER_KEY = "object_requires_transfer"
     FALLBACK_KEY = "fallback"
+
+    _OBJECT_KEY_MAP = {
+        ObjectType.ORDER: OBJECT_ORDER_KEY,
+        ObjectType.PRODUCT: OBJECT_PRODUCT_KEY,
+        ObjectType.BANK_ACCOUNT: OBJECT_BANK_ACCOUNT_KEY,
+        ObjectType.BANK_CARD: OBJECT_BANK_CARD_KEY,
+        ObjectType.CREDIT_CARD: OBJECT_CREDIT_CARD_KEY,
+        ObjectType.DEPOSIT: OBJECT_DEPOSIT_KEY,
+        ObjectType.LOAN: OBJECT_LOAN_KEY,
+        ObjectType.WEALTH_PRODUCT: OBJECT_WEALTH_PRODUCT_KEY,
+        ObjectType.FUND_PRODUCT: OBJECT_FUND_PRODUCT_KEY,
+        ObjectType.TRANSACTION: OBJECT_TRANSACTION_KEY,
+        ObjectType.TRANSFER: OBJECT_TRANSFER_KEY,
+    }
 
     @classmethod
     def required_message_keys(cls) -> frozenset[str]:
@@ -38,8 +61,8 @@ class ClarifyResponder:
         ``ClarifyMessageLoader`` 直接复用本方法，避免在 loader 里重复声明字符串。
         """
         return frozenset({r.value for r in cls.DIRECT_REASONS}) | frozenset(
-            {cls.OBJECT_ORDER_KEY, cls.OBJECT_PRODUCT_KEY, cls.FALLBACK_KEY}
-        )
+            cls._OBJECT_KEY_MAP.values()
+        ) | frozenset({cls.FALLBACK_KEY})
 
     def __init__(self, messages: dict[str, str], persona: str = ""):
         self._messages = messages
@@ -84,10 +107,9 @@ class ClarifyResponder:
     def _resolve_key(self, reason: ClarifyReason, focused_object) -> str:
         if reason is ClarifyReason.OBJECT_REQUIRES_INTENT:
             if focused_object is not None:
-                if focused_object.type == ObjectType.ORDER:
-                    return self.OBJECT_ORDER_KEY
-                if focused_object.type == ObjectType.PRODUCT:
-                    return self.OBJECT_PRODUCT_KEY
+                key = self._OBJECT_KEY_MAP.get(focused_object.type)
+                if key is not None:
+                    return key
             return self.FALLBACK_KEY
         if reason in self.DIRECT_REASONS:
             return reason.value

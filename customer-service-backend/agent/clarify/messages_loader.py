@@ -10,14 +10,14 @@ from agent.clarify.responder import ClarifyResponder
 class ClarifyMessageLoader:
     """加载澄清话术（bot 对外文案）。
 
-    配置发现逻辑内聚于此，与 ``FlowLoader`` 同构：默认从 ``flow_config`` 目录
+    配置发现逻辑内聚于此，与 ``FlowLoader`` 同构：默认从 ``domain_config`` 目录
     收集 ``clarify_messages`` 段，``load_many`` 仍公开以便单测注入临时目录。
 
     必填 key 集合由 ``ClarifyResponder.required_message_keys()`` 单一提供，
     本 loader 不重复声明文案 key 字符串（避免与 ``ClarifyReason`` 漂移）。
     """
 
-    CONFIG_DIR = Path(__file__).resolve().parents[2] / "flow_config"
+    CONFIG_DIR = Path(__file__).resolve().parents[2] / "domain_config"
 
     def load_from_config_dir(self) -> dict[str, str]:
         paths = [

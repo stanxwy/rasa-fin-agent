@@ -6,14 +6,14 @@ from agent.knowledge.intents import KnowledgeIntent
 
 
 class KnowledgeIntentLoader:
-    """加载 ``flow_config/knowledge_intents.yml`` → ``dict[str, KnowledgeIntent]``。
+    """加载 ``domain_config/knowledge_intents.yml`` → ``dict[str, KnowledgeIntent]``。
 
     与 ``FlowLoader`` / ``ClarifyMessageLoader`` 同构：配置发现封装在 loader 内，
     ``load_many(paths)`` 保留供单测注入临时目录。``requires_object`` 已是纯 ``str``，
     不再耦合 ``ObjectType`` 枚举，换领域时 yml 直接声明自己的对象类型即可。
     """
 
-    CONFIG_DIR = Path(__file__).resolve().parents[2] / "flow_config"
+    CONFIG_DIR = Path(__file__).resolve().parents[2] / "domain_config"
     REQUIRED_KEY = "intents"
 
     def load_from_config_dir(self) -> dict[str, KnowledgeIntent]:

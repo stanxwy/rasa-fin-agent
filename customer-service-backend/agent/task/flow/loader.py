@@ -15,7 +15,7 @@ class FlowLoader:
 
     # 配置文件目录（yml 发现逻辑的单一真相，避免散落到组合根）。
     # loader.py 位于 agent/task/flow/，仓库根在其上 3 层。
-    CONFIG_DIR = Path(__file__).resolve().parents[3] / "flow_config"
+    CONFIG_DIR = Path(__file__).resolve().parents[3] / "domain_config"
 
     def load_from_config_dir(self) -> FlowsList:
         """
@@ -151,8 +151,8 @@ def validate_flow_actions(flows_list: FlowsList, registry: ActionRegistry) -> No
 
 if __name__ == '__main__':
     base_path = Path(__file__).resolve().parents[3]
-    user_flow_path = base_path / 'flow_config' / 'user_flows.yml'
-    system_flow_path = base_path / 'flow_config' / 'system_flows.yml'
+    user_flow_path = base_path / 'domain_config' / 'user_flows.yml'
+    system_flow_path = base_path / 'domain_config' / 'system_flows.yml'
     loader = FlowLoader()
     flows_list = loader.load_many([user_flow_path, system_flow_path])
     print(flows_list.model_dump_json(indent=2))

@@ -49,13 +49,26 @@ class HistoryBuilder:
     def _render_text_msg(text: str) -> str:
         return text.strip()
 
+    _OBJECT_LABELS = {
+        ObjectType.ORDER: "订单对象",
+        ObjectType.PRODUCT: "商品对象",
+        ObjectType.BANK_ACCOUNT: "银行账户对象",
+        ObjectType.BANK_CARD: "银行卡对象",
+        ObjectType.CREDIT_CARD: "信用卡对象",
+        ObjectType.DEPOSIT: "存款产品对象",
+        ObjectType.LOAN: "贷款对象",
+        ObjectType.WEALTH_PRODUCT: "理财产品对象",
+        ObjectType.FUND_PRODUCT: "基金产品对象",
+        ObjectType.TRANSACTION: "交易流水对象",
+        ObjectType.TRANSFER: "转账记录对象",
+    }
+
     @classmethod
     def _render_obj_msg(cls, object_msg: FocusedObject) -> str:
-        label = "订单对象" if object_msg.type == ObjectType.ORDER else "商品对象"
+        label = cls._OBJECT_LABELS.get(object_msg.type, "业务对象")
         id = object_msg.id
         title = object_msg.title
         attributes: dict[str, Any] = object_msg.attributes
-        # attributes_str = " ".join([f"{key}={value}" for key, value in attributes.items()])
         return f"[label={label}, id={id}, title={title}, attributes={json.dumps(attributes, ensure_ascii=False)}]"
 
 

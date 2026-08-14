@@ -1,0 +1,105 @@
+intents:
+  bank_account_info:
+    id: bank_account_info
+    description: 银行账户信息查询，包括账户余额、可用余额、冻结金额、账户状态等
+    provider_ids:
+      - api.bank_account
+    requires_object: bank_account
+
+  bank_card_info:
+    id: bank_card_info
+    description: 银行卡信息查询，包括卡号、卡类型、卡状态、绑定账户等
+    provider_ids:
+      - api.bank_card
+    requires_object: bank_card
+
+  credit_card_info:
+    id: credit_card_info
+    description: 信用卡信息查询，包括信用卡额度、卡状态、绑定账户等
+    provider_ids:
+      - api.credit_card
+    requires_object: credit_card
+
+  deposit_info:
+    id: deposit_info
+    description: 存款产品信息查询，包括存款类型、利率、起存金额等
+    provider_ids:
+      - api.deposit
+    requires_object: deposit
+
+  loan_info:
+    id: loan_info
+    description: 贷款信息查询，包括贷款产品利率、期限、还款方式，或贷款合同借据详情
+    provider_ids:
+      - api.loan
+    requires_object: loan
+
+  wealth_product_info:
+    id: wealth_product_info
+    description: 理财产品信息查询，包括产品风险等级、预期收益率、起购金额等
+    provider_ids:
+      - api.wealth_product
+    requires_object: wealth_product
+
+  fund_product_info:
+    id: fund_product_info
+    description: 基金产品信息查询，包括基金类型、净值、风险等级等
+    provider_ids:
+      - api.fund_product
+    requires_object: fund_product
+
+  transaction_info:
+    id: transaction_info
+    description: 交易流水查询，包括交易金额、交易状态、交易时间、交易对手等
+    provider_ids:
+      - api.transaction
+    requires_object: transaction
+
+  transfer_info:
+    id: transfer_info
+    description: 转账记录查询，包括转账金额、转账状态、收款方信息等
+    provider_ids:
+      - api.transfer
+    requires_object: transfer
+
+  interest_rate_policy:
+    id: interest_rate_policy
+    description: 利率说明咨询
+    provider_ids:
+      - faq.default
+      - rag.default
+
+  fee_rule:
+    id: fee_rule
+    description: 手续费规则咨询
+    provider_ids:
+      - faq.default
+      - rag.default
+
+  prepayment_policy:
+    id: prepayment_policy
+    description: 提前还款政策咨询
+    provider_ids:
+      - faq.default
+      - rag.default
+
+  credit_card_repayment_rule:
+    id: credit_card_repayment_rule
+    description: 信用卡还款规则咨询
+    provider_ids:
+      - faq.default
+      - rag.default
+
+  risk_disclosure:
+    id: risk_disclosure
+    description: 风险提示咨询
+    provider_ids:
+      - faq.default
+      - rag.default
+
+  general_finance_info:
+    id: general_finance_info
+    description: 金融通用信息咨询
+    provider_ids:
+      - faq.default
+      - rag.default

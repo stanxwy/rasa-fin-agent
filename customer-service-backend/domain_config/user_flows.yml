@@ -1,0 +1,21 @@
+slots: {}
+
+flows:
+  onboarding:
+    name: 欢迎引导
+    description: 在聊天窗口初次打开时欢迎用户，并介绍助手可处理的金融服务。这个 flow 通常由系统主动触发。
+    steps:
+      - id: start
+        type: start
+        next: respond
+
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          text: "你好，这里是 Atguigu 金融助手。我可以帮你查询银行账户、银行卡、信用卡、存款、贷款、理财产品、基金产品、交易流水、转账记录等信息。"
+        next: end
+
+      - id: end
+        type: end
+        next: []

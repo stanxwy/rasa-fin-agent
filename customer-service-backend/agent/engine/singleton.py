@@ -9,10 +9,17 @@ from agent.engine.dialogue_engine import DialogueEngine
 from agent.knowledge.handler import KnowledgeHandler
 from agent.knowledge.intents_loader import KnowledgeIntentLoader
 from agent.knowledge.providers import (
+    BankAccountAPIProvider,
+    BankCardAPIProvider,
+    CreditCardAPIProvider,
+    DepositAPIProvider,
     FAQProvider,
-    OrderAPIProvider,
-    ProductAPIProvider,
+    FundProductAPIProvider,
+    LoanAPIProvider,
     RAGProvider,
+    TransactionAPIProvider,
+    TransferAPIProvider,
+    WealthProductAPIProvider,
 )
 from agent.knowledge.registry import KnowledgeProviderRegistry
 from agent.knowledge.responder import KnowledgeResponder
@@ -56,8 +63,15 @@ def build_dialogue_engine() -> DialogueEngine:
             knowledge_intents=knowledge_intents,
             provider_registry=KnowledgeProviderRegistry(
                 [
-                    ProductAPIProvider(),
-                    OrderAPIProvider(),
+                    BankAccountAPIProvider(),
+                    BankCardAPIProvider(),
+                    CreditCardAPIProvider(),
+                    DepositAPIProvider(),
+                    LoanAPIProvider(),
+                    WealthProductAPIProvider(),
+                    FundProductAPIProvider(),
+                    TransactionAPIProvider(),
+                    TransferAPIProvider(),
                     FAQProvider(),
                     RAGProvider(),
                 ]

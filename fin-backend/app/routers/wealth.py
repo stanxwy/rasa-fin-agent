@@ -78,6 +78,7 @@ def list_wealth_products(
         description="币种编码，对应 dim_currency.currency_code", default=None
     ),
     product_status: str | None = Query(description="产品状态", default=None),
+    product_type: str | None = Query(description="产品类型，如 equity/mixed/fixed_income/cash_management/structured_deposit", default=None),
 ) -> dict[str, object]:
     where: list[str] = []
     params: list[object] = []
@@ -90,6 +91,9 @@ def list_wealth_products(
     if product_status:
         where.append("product.product_status = %s")
         params.append(product_status)
+    if product_type:
+        where.append("product.product_type = %s")
+        params.append(product_type)
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
     rows = fetch_all(
         f"""
@@ -97,6 +101,7 @@ def list_wealth_products(
             product.product_code,
             product.product_name,
             risk.risk_level_code AS risk_level,
+            product.product_type,
             product.expected_yield_rate,
             product.product_status AS open_status
         FROM wealth_product AS product

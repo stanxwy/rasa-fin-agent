@@ -346,6 +346,80 @@ def create_card(
     return ok(data, ctx.request_id)
 
 
+@router.get("/customers/{customer_no}/cards", summary="查询客户银行卡列表")
+def list_customer_cards(
+    customer_no: Annotated[str, Path(description="客户号，对应 customer.customer_no")],
+    ctx: Annotated[RequestContext, Depends(get_request_context)],
+    card_type: str | None = Query(description="银行卡类型，如 debit/credit", default=None),
+    card_status: str | None = Query(description="银行卡状态", default=None),
+) -> dict[str, object]:
+    customer = ensure_customer_access(customer_no, ctx)
+    where = ["card.customer_id = %s"]
+    params: list[object] = [customer["id"]]
+    if card_type:
+        where.append("card.card_type = %s")
+        params.append(card_type)
+    if card_status:
+        where.append("card.card_status = %s")
+        params.append(card_status)
+    rows = fetch_all(
+        f"""
+        SELECT
+            card.card_no,
+            card.card_type,
+            card.card_level,
+            card.card_status,
+            card.issued_at,
+            card.expired_at,
+            account.account_no,
+            account.currency_code,
+            account.balance_amount,
+            account.available_amount,
+            product.product_name AS account_product_name
+        FROM bank_card AS card
+        JOIN bank_account AS account ON account.id = card.account_id
+        JOIN account_product AS product ON product.id = account.account_product_id
+        WHERE {" AND ".join(where)}
+        ORDER BY card.issued_at DESC, card.id DESC
+        """,
+        tuple(params),
+    )
+    return ok({"list": serialize_rows(rows)}, ctx.request_id)
+
+
+@router.get("/cards/{card_no}", summary="查询银行卡详情")
+def get_card(
+    card_no: Annotated[str, Path(description="银行卡号，对应 bank_card.card_no")],
+    ctx: Annotated[RequestContext, Depends(get_request_context)],
+) -> dict[str, object]:
+    card = fetch_one("SELECT * FROM bank_card WHERE card_no = %s", (card_no,))
+    if card is None:
+        raise not_found("CARD_NOT_FOUND", "银行卡不存在")
+    _ensure_customer_scope(int(card["customer_id"]), ctx)
+    account = _account_by_id(int(card["account_id"]))
+    product = fetch_one(
+        "SELECT product_code, product_name, account_type FROM account_product WHERE id = %s",
+        (account["account_product_id"],),
+    )
+    return ok(
+        {
+            "card_no": card["card_no"],
+            "card_type": card["card_type"],
+            "card_level": card["card_level"],
+            "card_status": card["card_status"],
+            "issued_at": format_datetime(card["issued_at"]),
+            "expired_at": format_datetime(card["expired_at"]),
+            "account_no": account["account_no"],
+            "currency_code": account["currency_code"],
+            "balance_amount": str(account["balance_amount"]),
+            "available_amount": str(account["available_amount"]),
+            "frozen_amount": str(account["frozen_amount"]),
+            "account_product": serialize_row(product) if product else None,
+        },
+        ctx.request_id,
+    )
+
+
 @router.post("/accounts/{account_no}/status-changes", summary="变更账户状态")
 def change_account_status(
     account_no: Annotated[
