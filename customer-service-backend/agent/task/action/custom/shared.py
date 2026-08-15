@@ -550,6 +550,112 @@ async def fetch_transfer_records(account_no: str) -> list[dict] | None:
     return await fetch_account_transactions(account_no, transaction_type="transfer")
 
 
+# 对话侧账户类型（口语/英文）-> 后端 account_product.account_type 标准列值。
+# 后端 AccountCreateRequest.product_code 必须是真实产品编码（如 ACC_DEMAND_CNY），
+# 而对话侧传入的是口语/英文类型（如 savings/活期/定期），需在此完成映射。
+_ACCOUNT_TYPE_ALIASES: dict[str, str] = {
+    "demand_deposit": "demand_deposit",
+    "savings": "demand_deposit",
+    "活期": "demand_deposit",
+    "活存": "demand_deposit",
+    "储蓄": "demand_deposit",
+    "fixed_deposit": "demand_deposit",
+    "定存": "demand_deposit",
+    "定期": "demand_deposit",
+    "settlement": "settlement",
+    "结算": "settlement",
+    "virtual": "demand_deposit",
+    "线上": "demand_deposit",
+    "线上虚拟": "demand_deposit",
+    "payroll": "settlement",
+    "工资": "settlement",
+    "工资代发": "settlement",
+    "wealth": "wealth_settlement",
+    "理财": "wealth_settlement",
+    "理财资金": "wealth_settlement",
+    "loan_repayment": "loan_repayment",
+    "还款": "loan_repayment",
+    "贷款还款": "loan_repayment",
+    "escrow": "settlement",
+    "担保": "settlement",
+    "担保支付": "settlement",
+    "cross_border": "settlement",
+    "跨境": "settlement",
+    "business": "settlement",
+    "企业": "settlement",
+    "merchant": "settlement",
+    "商户": "settlement",
+    "api_settle": "settlement",
+    "开放银行": "settlement",
+}
+
+# 机构编码缺失时的兜底默认值（对应 seed 中上海分行 BR001）
+_DEFAULT_BRANCH_CODE = "BR001"
+
+
+async def _resolve_account_product_code(account_type: str, currency: str) -> str | None:
+    """将对话侧的账户类型解析为后端真实的 product_code。
+
+    解析顺序：已是产品编码 -> 按标准 account_type+币种匹配 -> 同币种任意在售 ->
+    全量产品同币种在售 -> 兜底人民币活期账户（ACC_DEMAND_CNY）。
+    """
+    if account_type and account_type.upper().startswith("ACC_"):
+        return account_type
+    canonical = _ACCOUNT_TYPE_ALIASES.get(
+        (account_type or "").strip().lower(), (account_type or "").strip().lower()
+    )
+    currency = (currency or "CNY").upper()
+    try:
+        products = await fetch_account_products(account_type=canonical) or []
+        match = next(
+            (
+                p
+                for p in products
+                if p.get("currency_code") == currency and p.get("product_status") == "active"
+            ),
+            None,
+        )
+        if match:
+            return match.get("product_code")
+        match = next((p for p in products if p.get("currency_code") == currency), None)
+        if match:
+            return match.get("product_code")
+        all_products = await fetch_account_products() or []
+        match = next(
+            (
+                p
+                for p in all_products
+                if p.get("currency_code") == currency and p.get("product_status") == "active"
+            ),
+            None,
+        )
+        if match:
+            return match.get("product_code")
+    except Exception as e:  # 查询失败时走兜底，不中断开户
+        logger.warning(f"_resolve_account_product_code failed: {e}")
+    if currency == "CNY":
+        return "ACC_DEMAND_CNY"
+    return None
+
+
+async def _resolve_branch_code(branch_code: str | None) -> str:
+    """机构编码缺失时，回退到一个可用的在售机构。
+
+    跳过汇总根节点（branch_code='ALL'），优先选择真实可办理业务的分行/支行。
+    """
+    if branch_code and branch_code.strip():
+        return branch_code.strip()
+    try:
+        branches = await fetch_branches(branch_status="active") or []
+        for b in branches:
+            code = (b.get("branch_code") or "").strip()
+            if code and code != "ALL":
+                return code
+    except Exception as e:
+        logger.warning(f"_resolve_branch_code failed: {e}")
+    return _DEFAULT_BRANCH_CODE
+
+
 async def create_account(
     account_type: str,
     currency: str,
@@ -561,15 +667,23 @@ async def create_account(
     后端 AccountCreateRequest 要求: request_no, customer_no, product_code,
     currency_code, branch_code, channel_code, open_amount(可选)。
     customer_no 从 contextvar 获取，channel_code 默认 MOBILE_BANK。
+    对话侧 account_type 与 branch_code 可能缺失/不规范，这里统一解析为后端可用值。
     """
     try:
         customer_no = _current_customer_no.get() or ""
+        product_code = await _resolve_account_product_code(account_type, currency)
+        resolved_branch = await _resolve_branch_code(branch_code)
+        if not product_code:
+            logger.warning(
+                f"create_account failed: 无法解析账户产品编码 account_type={account_type} currency={currency}"
+            )
+            return None
         payload = {
             "request_no": _make_idempotent_key(),
             "customer_no": customer_no,
-            "product_code": account_type,
+            "product_code": product_code,
             "currency_code": currency,
-            "branch_code": branch_code,
+            "branch_code": resolved_branch,
             "channel_code": extra.pop("channel_code", "MOBILE_BANK"),
         }
         payload.update({k: v for k, v in extra.items() if v is not None})
